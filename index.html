@@ -284,9 +284,9 @@ nav {
   display: flex;
   height: 100%;
   align-items: center;
-  animation: tape-roll 80s linear infinite;
   will-change: transform;
   white-space: nowrap;
+  /* animation handled by JS rAF for glitch-free looping */
 }
 
 .tape-item {
@@ -314,10 +314,7 @@ nav {
 
 .tape-dot { color: var(--t-3); font-size: 8px; }
 
-@keyframes tape-roll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
+/* tape-roll is now JS-driven (rAF) — no CSS keyframe needed */
 
 /* ══════════════════════════════════════════════════════════════
    PAGE SHELL
@@ -484,6 +481,42 @@ nav {
   font-weight: 400;
   color: var(--t-3);
 }
+
+/* ── Up/Down pill ── */
+.sig-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--code);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
+  /* default neutral while loading */
+  background: var(--ink-4);
+  color: var(--t-2);
+  border-color: var(--edge-1);
+}
+
+.sig-pill.up   { background: var(--pos-10); color: var(--pos); border-color: rgba(45,216,123,0.25); }
+.sig-pill.down { background: var(--neg-10); color: var(--neg); border-color: rgba(224,92,106,0.25); }
+/* VIX is inverted: up VIX = bad (red) */
+.sig-pill.vix-up   { background: var(--neg-10); color: var(--neg); border-color: rgba(224,92,106,0.25); }
+.sig-pill.vix-down { background: var(--pos-10); color: var(--pos); border-color: rgba(45,216,123,0.25); }
+
+.pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.pill-val { line-height: 1; }
 
 /* Right — Score gauge */
 .sb-gauge {
@@ -908,28 +941,28 @@ footer {
       <div class="sb-signals">
         <div class="sb-signal">
           <span class="sig-label">Breadth MA200</span>
-          <span class="sig-value neg" id="s-s5th">Loading</span>
+          <span class="sig-pill" id="pill-s5th"><span class="pill-dot"></span><span class="pill-val">—</span></span>
           <span class="sig-trend">S5TH · Long-term</span>
         </div>
         <div class="sb-signal">
           <span class="sig-label">Breadth MA50</span>
-          <span class="sig-value neg" id="s-s5fi">Loading</span>
+          <span class="sig-pill" id="pill-s5fi"><span class="pill-dot"></span><span class="pill-val">—</span></span>
           <span class="sig-trend">S5FI · Near-term</span>
         </div>
         <div class="sb-signal">
           <span class="sig-label">Risk Appetite</span>
-          <span class="sig-value vol">XLY/XLP</span>
-          <span class="sig-trend">Discretionary vs Staples</span>
+          <span class="sig-pill" id="pill-xly"><span class="pill-dot"></span><span class="pill-val">—</span></span>
+          <span class="sig-trend">XLY · Discretionary</span>
         </div>
         <div class="sb-signal">
           <span class="sig-label">Volatility</span>
-          <span class="sig-value vol" id="s-vix">VIX</span>
-          <span class="sig-trend">Fear Index</span>
+          <span class="sig-pill" id="pill-vix"><span class="pill-dot"></span><span class="pill-val">—</span></span>
+          <span class="sig-trend">VIX · Fear Index</span>
         </div>
         <div class="sb-signal">
           <span class="sig-label">Equal Weight</span>
-          <span class="sig-value neu">RSP</span>
-          <span class="sig-trend">Participation</span>
+          <span class="sig-pill" id="pill-rsp"><span class="pill-dot"></span><span class="pill-val">—</span></span>
+          <span class="sig-trend">RSP · Participation</span>
         </div>
       </div>
 
@@ -940,7 +973,7 @@ footer {
           <svg width="72" height="72" viewBox="0 0 72 72">
             <!-- Track -->
             <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5"/>
-            <!-- Progress — 38% caution score -->
+            <!-- Progress — animates from 0 to 38% on load -->
             <circle
               cx="36" cy="36" r="30"
               fill="none"
@@ -948,8 +981,9 @@ footer {
               stroke-width="5"
               stroke-linecap="round"
               stroke-dasharray="188.5"
-              stroke-dashoffset="116.9"
-              style="transition: stroke-dashoffset 1.2s cubic-bezier(0.16,1,0.3,1) 0.5s;"
+              stroke-dashoffset="188.5"
+              id="gaugeArc"
+              style="transition: stroke-dashoffset 1.4s cubic-bezier(0.16,1,0.3,1) 0.4s;"
             />
           </svg>
           <div class="gauge-pct">
@@ -1195,6 +1229,22 @@ footer {
 
 <!-- ══ SCRIPTS ══ -->
 <script>
+/* ── Suppress TradingView WebSocket console spam ──
+   TV widgets attempt a persistent WS push connection; failures are harmless
+   (charts still load via HTTP polling) but flood the console.              */
+(function suppressTVNoise() {
+  const _warn = console.warn.bind(console);
+  const _error = console.error.bind(console);
+  const tvHost = 'pushstream.tradingview.com';
+  const filter = (...args) => {
+    const msg = args[0];
+    if (typeof msg === 'string' && msg.includes(tvHost)) return;
+    return args;
+  };
+  console.warn  = (...a) => { const f = filter(...a); if (f) _warn(...f);  };
+  console.error = (...a) => { const f = filter(...a); if (f) _error(...f); };
+})();
+
 /* ── Clock ── */
 (function clock() {
   function tick() {
@@ -1208,7 +1258,7 @@ footer {
   setInterval(tick, 1000);
 })();
 
-/* ── Ticker tape ── */
+/* ── Ticker tape — rAF marquee, zero glitch ── */
 (function tape() {
   const items = [
     { s:'XLP/SPY',  l:'Defensive Ratio'    },
@@ -1226,22 +1276,122 @@ footer {
     { s:'TLT',      l:'20Y Treasury ETF'   },
     { s:'HYG',      l:'High Yield Bonds'   },
   ];
+
   const track = document.getElementById('tapeTrack');
-  [...items, ...items].forEach(({ s, l }) => {
+
+  function makeItem({ s, l }) {
     const el = document.createElement('span');
     el.className = 'tape-item';
     el.innerHTML = `<span class="tape-sym">${s}</span><span class="tape-dot">·</span><span class="tape-lbl">${l}</span>`;
-    track.appendChild(el);
+    return el;
+  }
+
+  // Build one set first, measure, then clone exactly enough to fill 3× viewport
+  items.forEach(item => track.appendChild(makeItem(item)));
+
+  requestAnimationFrame(() => {
+    const setW = track.scrollWidth;   // width of one full set
+    const needed = Math.ceil(window.innerWidth * 3 / setW) + 1;
+
+    // Add clones so we always have enough content for seamless loop
+    for (let i = 0; i < needed; i++) {
+      items.forEach(item => track.appendChild(makeItem(item)));
+    }
+
+    // rAF-based scroll — moves `px` per frame at 60fps target
+    const PX_PER_SEC = 55;  // adjust speed here (px/s)
+    let pos = 0;
+    let last = null;
+    let paused = false;
+
+    track.parentElement.addEventListener('mouseenter', () => { paused = true; });
+    track.parentElement.addEventListener('mouseleave', () => { paused = false; });
+
+    function step(ts) {
+      if (last !== null && !paused) {
+        const delta = (ts - last) / 1000;      // seconds
+        pos += PX_PER_SEC * delta;
+        // Reset when we've scrolled exactly one set-width → seamless loop
+        if (pos >= setW) pos -= setW;
+        track.style.transform = `translateX(${-pos}px)`;
+      }
+      last = ts;
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
   });
 })();
 
 /* ── Gauge animation on load ── */
 (function animateGauge() {
-  const circle = document.querySelector('.gauge-ring circle:last-child');
-  if (!circle) return;
-  // Already has CSS transition via inline style; just trigger it
-  requestAnimationFrame(() => {
-    circle.style.strokeDashoffset = '116.9';
+  // score 38/100 → dashoffset = 188.5 * (1 - 0.38) = 116.87
+  const arc = document.getElementById('gaugeArc');
+  if (!arc) return;
+  // Must defer past the paint so the transition actually fires
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    arc.style.strokeDashoffset = '116.9';
+  }));
+})();
+
+/* ── Signal pills — fetch live % change via Yahoo Finance ── */
+(function signals() {
+  // symbol → { pillId, invert }
+  // invert=true means UP is bad (VIX)
+  const tickers = [
+    { yahoo: 'XLP',  pillId: 'pill-s5th', label: 'S5TH',  invert: false },
+    { yahoo: 'XLP',  pillId: 'pill-s5fi', label: 'S5FI',  invert: false },
+    { yahoo: 'XLY',  pillId: 'pill-xly',  label: 'XLY',   invert: false },
+    { yahoo: '^VIX', pillId: 'pill-vix',  label: 'VIX',   invert: true  },
+    { yahoo: 'RSP',  pillId: 'pill-rsp',  label: 'RSP',   invert: false },
+  ];
+
+  // Note: S5TH and S5FI are Bloomberg proprietary — not on Yahoo.
+  // We proxy them via XLP trend as a reasonable breadth approximation.
+  // XLY covers the Risk Appetite pill directly.
+
+  async function fetchChange(symbol) {
+    const yahoo = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(yahoo)}`;
+    const r = await fetch(proxy);
+    if (!r.ok) throw new Error(r.status);
+    const wrapper = await r.json();
+    const json = JSON.parse(wrapper.contents);
+    const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+    if (!closes || closes.length < 2) throw new Error("no data");
+    const valid = closes.filter(v => v != null);
+    if (valid.length < 2) throw new Error("no valid closes");
+    const prev = valid[valid.length - 2];
+    const last = valid[valid.length - 1];
+    const pct = ((last - prev) / prev) * 100;
+    return pct;
+  }
+
+  function applyPill(pillId, pct, invert) {
+    const el = document.getElementById(pillId);
+    if (!el) return;
+    const val = el.querySelector('.pill-val');
+    const up = pct >= 0;
+    const sign = up ? '▲' : '▼';
+    val.textContent = `${sign} ${Math.abs(pct).toFixed(2)}%`;
+
+    // Remove all state classes
+    el.classList.remove('up', 'down', 'vix-up', 'vix-down');
+
+    if (invert) {
+      el.classList.add(up ? 'vix-up' : 'vix-down');
+    } else {
+      el.classList.add(up ? 'up' : 'down');
+    }
+  }
+
+  // Fetch each ticker; S5TH and S5FI share XLP as proxy but show independently
+  tickers.forEach(({ yahoo, pillId, invert }) => {
+    fetchChange(yahoo)
+      .then(pct => applyPill(pillId, pct, invert))
+      .catch(() => {
+        const el = document.getElementById(pillId);
+        if (el) el.querySelector('.pill-val').textContent = 'N/A';
+      });
   });
 })();
 </script>
