@@ -73,6 +73,63 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
+   SENTIMENT BANNER — deferred reveal
+══════════════════════════════════════════════════════════════ */
+.sb-verdict-text,
+.sb-subtitle,
+.sb-status-chip,
+.sb-gauge {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+  pointer-events: none;
+}
+.sentiment-banner.is-loaded .sb-verdict-text,
+.sentiment-banner.is-loaded .sb-subtitle,
+.sentiment-banner.is-loaded .sb-status-chip,
+.sentiment-banner.is-loaded .sb-gauge {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+/* Stagger each element slightly */
+.sentiment-banner.is-loaded .sb-status-chip  { transition-delay: 0.00s; }
+.sentiment-banner.is-loaded .sb-verdict-text { transition-delay: 0.08s; }
+.sentiment-banner.is-loaded .sb-subtitle     { transition-delay: 0.16s; }
+.sentiment-banner.is-loaded .sb-gauge        { transition-delay: 0.10s; }
+
+/* Placeholder shimmer on the verdict text while loading */
+.sb-verdict-text::before {
+  content: '';
+  display: block;
+  height: 1.1em;
+  width: 60%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--ink-4) 25%, var(--ink-3) 50%, var(--ink-4) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  margin-bottom: 2px;
+}
+.sb-subtitle::before {
+  content: '';
+  display: block;
+  height: 3em;
+  width: 90%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--ink-4) 25%, var(--ink-3) 50%, var(--ink-4) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+/* Hide shimmers once loaded */
+.sentiment-banner.is-loaded .sb-verdict-text::before,
+.sentiment-banner.is-loaded .sb-subtitle::before { display: none; }
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ══════════════════════════════════════════════════════════════
    RESET & BASE
 ══════════════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -199,7 +256,7 @@ nav {
   color: var(--t-2);
   padding: 5px 11px;
   border-radius: 6px;
-  cursor: default;
+  cursor: pointer;
   transition: color 0.15s, background 0.15s;
   white-space: nowrap;
 }
@@ -463,19 +520,6 @@ nav {
   text-align: center;
 }
 
-.sig-value {
-  font-family: var(--code);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  line-height: 1;
-}
-
-.sig-value.pos { color: var(--pos); }
-.sig-value.neg { color: var(--neg); }
-.sig-value.vol { color: var(--vol); }
-.sig-value.neu { color: var(--neu); }
-
 .sig-trend {
   font-size: 10px;
   font-weight: 400;
@@ -512,9 +556,14 @@ nav {
   height: 5px;
   border-radius: 50%;
   background: currentColor;
-  opacity: 0.8;
+  opacity: 0;              /* hidden until data class applied */
   flex-shrink: 0;
+  transition: opacity 0.3s;
 }
+.sig-pill.up   .pill-dot,
+.sig-pill.down .pill-dot,
+.sig-pill.vix-up   .pill-dot,
+.sig-pill.vix-down .pill-dot { opacity: 0.8; }
 
 .pill-val { line-height: 1; }
 
@@ -642,7 +691,7 @@ nav {
   background: var(--ink-2);
   border: 1px solid var(--edge-1);
   border-radius: 10px;
-  overflow: hidden;
+  overflow: clip;          /* clip instead of hidden — lets box-shadow escape */
   display: flex;
   flex-direction: column;
   box-shadow: var(--sh-card);
@@ -652,7 +701,6 @@ nav {
     transform    0.25s var(--ease);
   animation: rise 0.5s var(--ease) both;
 
-  /* Glassmorphism on hover needs a bg shift */
   --card-bg: var(--ink-2);
 }
 
@@ -940,9 +988,9 @@ footer {
       <!-- Center: Signal Summary -->
       <div class="sb-signals">
         <div class="sb-signal">
-          <span class="sig-label">Breadth MA200</span>
-          <span class="sig-pill" id="pill-s5th"><span class="pill-dot"></span><span class="pill-val">—</span></span>
-          <span class="sig-trend">S5TH · Long-term</span>
+          <span class="sig-label">XLP / SPY</span>
+          <span class="sig-pill" id="pill-xlpspy"><span class="pill-dot"></span><span class="pill-val">—</span></span>
+          <span class="sig-trend">Defensive Ratio</span>
         </div>
         <div class="sb-signal">
           <span class="sig-label">Breadth MA50</span>
@@ -950,19 +998,20 @@ footer {
           <span class="sig-trend">S5FI · Near-term</span>
         </div>
         <div class="sb-signal">
-          <span class="sig-label">Risk Appetite</span>
+          <span class="sig-label">XLY / XLP</span>
           <span class="sig-pill" id="pill-xly"><span class="pill-dot"></span><span class="pill-val">—</span></span>
-          <span class="sig-trend">XLY · Discretionary</span>
+          <span class="sig-trend">XLY/XLP · Risk Appetite</span>
+        </div>
+
+        <div class="sb-signal">
+          <span class="sig-label">Equal Weight</span>
+          <span class="sig-pill" id="pill-rsp"><span class="pill-dot"></span><span class="pill-val">—</span></span>
+          <span class="sig-trend">RSP · Participation</span>
         </div>
         <div class="sb-signal">
           <span class="sig-label">Volatility</span>
           <span class="sig-pill" id="pill-vix"><span class="pill-dot"></span><span class="pill-val">—</span></span>
           <span class="sig-trend">VIX · Fear Index</span>
-        </div>
-        <div class="sb-signal">
-          <span class="sig-label">Equal Weight</span>
-          <span class="sig-pill" id="pill-rsp"><span class="pill-dot"></span><span class="pill-val">—</span></span>
-          <span class="sig-trend">RSP · Participation</span>
         </div>
       </div>
 
@@ -987,7 +1036,7 @@ footer {
             />
           </svg>
           <div class="gauge-pct">
-            <span class="gauge-num">38</span>
+            <span class="gauge-num">0</span>
             <span class="gauge-sub">/ 100</span>
           </div>
         </div>
@@ -1001,7 +1050,7 @@ footer {
   <div class="section-head">
     <span class="section-eyebrow">Live Market Indicators</span>
     <div class="section-rule"></div>
-    <span class="section-count">7 signals · Daily</span>
+    <span class="section-count">5 signals · Daily</span>
   </div>
 
   <!-- ══ BENTO GRID ══ -->
@@ -1065,37 +1114,8 @@ footer {
       </div>
     </div>
 
-    <!-- ③ VIX -->
-    <div class="wcard type-vol s-4 h-380">
-      <div class="ch">
-        <div class="ch-bar"></div>
-        <div class="ch-info">
-          <div class="ch-symbol">VIX</div>
-          <div class="ch-name">CBOE Volatility S&amp;P 500 Index — implied fear gauge</div>
-        </div>
-        <div class="ch-meta">
-          <span class="tag-interval">1D</span>
-          <span class="tag vol">Volatility</span>
-        </div>
-      </div>
-      <div class="wbody">
-        <div class="tradingview-widget-container" style="height:100%;width:100%">
-          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-          {
-            "autosize":true,"symbol":"TVC:VIX","interval":"D","timezone":"Etc/UTC",
-            "theme":"dark","style":"1","locale":"en",
-            "backgroundColor":"rgba(21,26,39,1)","gridColor":"rgba(255,255,255,0.04)",
-            "hide_top_toolbar":false,"hide_legend":false,"save_image":false,
-            "calendar":false,"hide_volume":true,"support_host":"https://www.tradingview.com"
-          }
-          </script>
-        </div>
-      </div>
-    </div>
-
     <!-- ④ XLY / XLP -->
-    <div class="wcard type-pos s-4 h-380">
+    <div class="wcard type-pos s-6 h-380">
       <div class="ch">
         <div class="ch-bar"></div>
         <div class="ch-info">
@@ -1124,7 +1144,7 @@ footer {
     </div>
 
     <!-- ⑤ RSP -->
-    <div class="wcard type-pos s-4 h-380">
+    <div class="wcard type-pos s-6 h-380">
       <div class="ch">
         <div class="ch-bar"></div>
         <div class="ch-info">
@@ -1151,36 +1171,6 @@ footer {
         </div>
       </div>
     </div>
-
-    <!-- ⑥ S5TH — % Above 200 DMA -->
-    <div class="wcard type-neu s-6 h-380">
-      <div class="ch">
-        <div class="ch-bar"></div>
-        <div class="ch-info">
-          <div class="ch-symbol">S5TH</div>
-          <div class="ch-name">% of S&amp;P 500 stocks above 200-day MA — long-term breadth health</div>
-        </div>
-        <div class="ch-meta">
-          <span class="tag-interval">1D</span>
-          <span class="tag neu">200-DMA</span>
-        </div>
-      </div>
-      <div class="wbody">
-        <div class="tradingview-widget-container" style="height:100%;width:100%">
-          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-          {
-            "autosize":true,"symbol":"S5TH","interval":"D","timezone":"Etc/UTC",
-            "theme":"dark","style":"1","locale":"en",
-            "backgroundColor":"rgba(21,26,39,1)","gridColor":"rgba(255,255,255,0.04)",
-            "hide_top_toolbar":false,"hide_legend":false,"save_image":false,
-            "calendar":false,"hide_volume":true,"support_host":"https://www.tradingview.com"
-          }
-          </script>
-        </div>
-      </div>
-    </div>
-
     <!-- ⑦ S5FI — % Above 50 DMA -->
     <div class="wcard type-neu s-6 h-380">
       <div class="ch">
@@ -1217,8 +1207,8 @@ footer {
 <footer>
   <p class="ft-text">
     <strong>Data — TradingView.</strong> All charts display live market data.
-    Ratios computed natively (XLP/SPY, XLY/XLP). S5TH &amp; S5FI: S&amp;P Dow Jones breadth indices.
-    VIX via TVC feed. Sentiment score is a static illustrative composite — not financial advice.
+    Ratios computed natively (XLP/SPY, XLY/XLP). S5FI: S&amp;P Dow Jones breadth index.
+    XLY/XLP ratio computed natively. Sentiment score loads after live data resolves — not financial advice.
   </p>
   <div class="ft-chips">
     <span class="fc">TradingView Widgets</span>
@@ -1233,16 +1223,12 @@ footer {
    TV widgets attempt a persistent WS push connection; failures are harmless
    (charts still load via HTTP polling) but flood the console.              */
 (function suppressTVNoise() {
-  const _warn = console.warn.bind(console);
+  const _warn  = console.warn.bind(console);
   const _error = console.error.bind(console);
   const tvHost = 'pushstream.tradingview.com';
-  const filter = (...args) => {
-    const msg = args[0];
-    if (typeof msg === 'string' && msg.includes(tvHost)) return;
-    return args;
-  };
-  console.warn  = (...a) => { const f = filter(...a); if (f) _warn(...f);  };
-  console.error = (...a) => { const f = filter(...a); if (f) _error(...f); };
+  const isTVNoise = (args) => typeof args[0] === 'string' && args[0].includes(tvHost);
+  console.warn  = (...a) => { if (!isTVNoise(a)) _warn(...a);  };
+  console.error = (...a) => { if (!isTVNoise(a)) _error(...a); };
 })();
 
 /* ── Clock ── */
@@ -1263,10 +1249,8 @@ footer {
   const items = [
     { s:'XLP/SPY',  l:'Defensive Ratio'    },
     { s:'XLU',      l:'Utilities ETF'      },
-    { s:'TVC:VIX',  l:'Fear Index'         },
     { s:'XLY/XLP',  l:'Risk Appetite'      },
     { s:'RSP',      l:'Equal Weight ETF'   },
-    { s:'S5TH',     l:'% Above 200D'       },
     { s:'S5FI',     l:'% Above 50D'        },
     { s:'SPY',      l:'S&P 500 ETF'        },
     { s:'QQQ',      l:'NASDAQ 100 ETF'     },
@@ -1286,20 +1270,17 @@ footer {
     return el;
   }
 
-  // Build one set first, measure, then clone exactly enough to fill 3× viewport
   items.forEach(item => track.appendChild(makeItem(item)));
 
-  requestAnimationFrame(() => {
-    const setW = track.scrollWidth;   // width of one full set
+  // Wait for fonts so scrollWidth is accurate
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
+    const setW = track.scrollWidth;
     const needed = Math.ceil(window.innerWidth * 3 / setW) + 1;
-
-    // Add clones so we always have enough content for seamless loop
     for (let i = 0; i < needed; i++) {
       items.forEach(item => track.appendChild(makeItem(item)));
     }
 
-    // rAF-based scroll — moves `px` per frame at 60fps target
-    const PX_PER_SEC = 55;  // adjust speed here (px/s)
+    const PX_PER_SEC = 55;
     let pos = 0;
     let last = null;
     let paused = false;
@@ -1309,9 +1290,9 @@ footer {
 
     function step(ts) {
       if (last !== null && !paused) {
-        const delta = (ts - last) / 1000;      // seconds
+        // Cap delta at 100ms to prevent jump after tab switch / sleep
+        const delta = Math.min((ts - last) / 1000, 0.1);
         pos += PX_PER_SEC * delta;
-        // Reset when we've scrolled exactly one set-width → seamless loop
         if (pos >= setW) pos -= setW;
         track.style.transform = `translateX(${-pos}px)`;
       }
@@ -1322,76 +1303,176 @@ footer {
   });
 })();
 
-/* ── Gauge animation on load ── */
-(function animateGauge() {
-  // score 38/100 → dashoffset = 188.5 * (1 - 0.38) = 116.87
-  const arc = document.getElementById('gaugeArc');
-  if (!arc) return;
-  // Must defer past the paint so the transition actually fires
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    arc.style.strokeDashoffset = '116.9';
-  }));
-})();
-
-/* ── Signal pills — fetch live % change via Yahoo Finance ── */
+/* ── Signal pills + Live Sentiment Score ── */
 (function signals() {
-  // symbol → { pillId, invert }
-  // invert=true means UP is bad (VIX)
-  const tickers = [
-    { yahoo: 'XLP',  pillId: 'pill-s5th', label: 'S5TH',  invert: false },
-    { yahoo: 'XLP',  pillId: 'pill-s5fi', label: 'S5FI',  invert: false },
-    { yahoo: 'XLY',  pillId: 'pill-xly',  label: 'XLY',   invert: false },
-    { yahoo: '^VIX', pillId: 'pill-vix',  label: 'VIX',   invert: true  },
-    { yahoo: 'RSP',  pillId: 'pill-rsp',  label: 'RSP',   invert: false },
+  const PROXIES = [
+    url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
   ];
 
-  // Note: S5TH and S5FI are Bloomberg proprietary — not on Yahoo.
-  // We proxy them via XLP trend as a reasonable breadth approximation.
-  // XLY covers the Risk Appetite pill directly.
-
   async function fetchChange(symbol) {
-    const yahoo = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(yahoo)}`;
-    const r = await fetch(proxy);
-    if (!r.ok) throw new Error(r.status);
-    const wrapper = await r.json();
-    const json = JSON.parse(wrapper.contents);
-    const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-    if (!closes || closes.length < 2) throw new Error("no data");
-    const valid = closes.filter(v => v != null);
-    if (valid.length < 2) throw new Error("no valid closes");
-    const prev = valid[valid.length - 2];
-    const last = valid[valid.length - 1];
-    const pct = ((last - prev) / prev) * 100;
-    return pct;
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
+    let lastErr;
+    for (const makeProxy of PROXIES) {
+      try {
+        const r    = await fetch(makeProxy(yahooUrl));
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const raw  = await r.json();
+        const json = raw.contents ? JSON.parse(raw.contents) : raw;
+        const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+        if (!closes) throw new Error('no closes');
+        const valid = closes.filter(v => v != null);
+        if (valid.length < 2) throw new Error('not enough data');
+        return ((valid[valid.length - 1] - valid[valid.length - 2]) / valid[valid.length - 2]) * 100;
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr;
   }
 
   function applyPill(pillId, pct, invert) {
     const el = document.getElementById(pillId);
     if (!el) return;
-    const val = el.querySelector('.pill-val');
     const up = pct >= 0;
-    const sign = up ? '▲' : '▼';
-    val.textContent = `${sign} ${Math.abs(pct).toFixed(2)}%`;
-
-    // Remove all state classes
+    el.querySelector('.pill-val').textContent = `${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(2)}%`;
     el.classList.remove('up', 'down', 'vix-up', 'vix-down');
-
-    if (invert) {
-      el.classList.add(up ? 'vix-up' : 'vix-down');
-    } else {
-      el.classList.add(up ? 'up' : 'down');
-    }
+    if (invert) el.classList.add(up ? 'vix-up' : 'vix-down');
+    else        el.classList.add(up ? 'up'      : 'down');
   }
 
-  // Fetch each ticker; S5TH and S5FI share XLP as proxy but show independently
-  tickers.forEach(({ yahoo, pillId, invert }) => {
-    fetchChange(yahoo)
-      .then(pct => applyPill(pillId, pct, invert))
-      .catch(() => {
-        const el = document.getElementById(pillId);
-        if (el) el.querySelector('.pill-val').textContent = 'N/A';
-      });
+  function pillFail(pillId) {
+    const el = document.getElementById(pillId);
+    if (el) { el.querySelector('.pill-val').textContent = 'N/A'; el.style.opacity = '0.45'; }
+  }
+
+  /* ── Scoring ──────────────────────────────────────────────────
+     Each signal scored 0–20 via sigmoid so ±1% moves score
+     meaningfully without extreme outliers dominating.
+     bullishWhenUp=true  → rising pct = more bullish = higher score
+     bullishWhenUp=false → rising pct = more bearish = lower score
+  ────────────────────────────────────────────────────────────── */
+  function scoreSignal(pct, bullishWhenUp) {
+    const sig = 1 / (1 + Math.exp(-(bullishWhenUp ? pct : -pct) * 0.4));
+    return sig * 20;
+  }
+
+  /* ── Verdict lookup ── */
+  function getVerdict(score) {
+    if (score >= 75) return { chip: 'Bullish',            cc: 'pos',     headline: 'Risk-On — <em>Broad Strength</em>',             sub: 'Breadth and risk appetite are expanding. Discretionary is outperforming defensives, volatility is suppressed, and equal-weight participation confirms broad market health.' };
+    if (score >= 60) return { chip: 'Moderately Bullish', cc: 'pos',     headline: 'Cautious Optimism — <em>Lean Long</em>',         sub: 'Most signals are constructive but not uniformly strong. Breadth is holding, risk appetite is positive, and fear gauges are cooling. Watch for confirmation.' };
+    if (score >= 45) return { chip: 'Neutral',            cc: 'neu',     headline: 'Mixed Signal — <em>Stay Selective</em>',         sub: 'Market internals are sending conflicting signals. Some defensive rotation is visible alongside pockets of risk appetite. Maintain balanced exposure.' };
+    if (score >= 30) return { chip: 'Elevated Caution',   cc: 'caution', headline: 'Mixed Signal — <em>Proceed with Caution</em>',  sub: 'Defensive rotation into Utilities (XLU) and Staples (XLP) is outpacing growth exposure. Breadth indicators show &lt;50% of S&P 500 stocks holding above key moving averages, suggesting deteriorating internal momentum beneath headline index levels.' };
+    return            { chip: 'Risk-Off',                 cc: 'neg',     headline: 'Bearish Signal — <em>Defensive Posture</em>',   sub: 'All major breadth and sentiment signals are flashing caution. VIX elevated, defensive sectors outperforming, and equal-weight breadth is deteriorating. Consider reducing risk exposure.' };
+  }
+
+  function getGaugeLabel(score) {
+    if (score >= 75) return 'Bullish Zone';
+    if (score >= 60) return 'Lean Bullish';
+    if (score >= 45) return 'Neutral Zone';
+    if (score >= 30) return 'Caution Zone';
+    return 'Bear Zone';
+  }
+
+  const PALETTE = {
+    pos:     { c: 'var(--pos)',     bg: 'var(--pos-10)',     b: 'rgba(45,216,123,0.22)'  },
+    neu:     { c: 'var(--neu)',     bg: 'var(--neu-10)',     b: 'rgba(91,132,212,0.22)'  },
+    caution: { c: 'var(--caution)', bg: 'var(--caution-10)', b: 'rgba(224,143,74,0.22)'  },
+    neg:     { c: 'var(--neg)',     bg: 'var(--neg-10)',     b: 'rgba(224,92,106,0.22)'  },
+  };
+
+  function applyVerdict(score) {
+    const v   = getVerdict(score);
+    const col = PALETTE[v.cc];
+
+    // Status chip
+    const chip = document.querySelector('.sb-status-chip');
+    if (chip) {
+      chip.style.color = col.c; chip.style.background = col.bg; chip.style.borderColor = col.b;
+      const svg = chip.querySelector('svg');
+      chip.textContent = v.chip;
+      if (svg) chip.prepend(svg);
+    }
+
+    // Headline + subtitle
+    const ht = document.querySelector('.sb-verdict-text');
+    if (ht) ht.innerHTML = v.headline;
+    const sub = document.querySelector('.sb-subtitle');
+    if (sub) sub.innerHTML = v.sub;
+
+    // Gauge reading label + arc/number color
+    const reading = document.querySelector('.gauge-reading');
+    if (reading) reading.textContent = getGaugeLabel(score);
+    const arc = document.getElementById('gaugeArc');
+    const num = document.querySelector('.gauge-num');
+    if (arc) arc.style.stroke = col.c;
+    if (num) num.style.color  = col.c;
+  }
+
+  function runGauge(score) {
+    const FULL = 188.5;
+    const arc  = document.getElementById('gaugeArc');
+    const num  = document.querySelector('.gauge-num');
+    if (!arc || !num) return;
+    num.textContent = '0';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      arc.style.strokeDashoffset = String(FULL * (1 - score / 100));
+    }));
+    const DURATION = 1400, DELAY = 100;
+    let startTs = null;
+    (function countUp(ts) {
+      if (!startTs) startTs = ts;
+      const elapsed = ts - startTs - DELAY;
+      if (elapsed < 0) { requestAnimationFrame(countUp); return; }
+      const ease = 1 - Math.pow(1 - Math.min(elapsed / DURATION, 1), 3);
+      num.textContent = String(Math.round(ease * score));
+      if (elapsed < DURATION) requestAnimationFrame(countUp);
+    })(performance.now());
+  }
+
+  function revealAndScore(r) {
+    let total = 0, count = 0;
+    function add(pct, bull) { if (pct !== null) { total += scoreSignal(pct, bull); count++; } }
+    add(r.xlpspy, false); // defensive ratio up = bearish
+    add(r.xlyxlp, true);  // risk appetite up = bullish
+    add(r.vix,    false); // VIX up = bearish
+    add(r.rsp,    true);  // breadth up = bullish
+    add(r.spy,    true);  // market up = bullish
+    const score = count > 0 ? Math.round((total / (count * 20)) * 100) : 38;
+    applyVerdict(score);
+    runGauge(score);
+    const banner = document.querySelector('.sentiment-banner');
+    if (banner) banner.classList.add('is-loaded');
+  }
+
+  // ── Fetch all ──
+  const r = { xlpspy: null, xlyxlp: null, vix: null, rsp: null, spy: null };
+  const all = [];
+
+  all.push(fetchChange('SPY')
+    .then(p => { r.spy = p;    applyPill('pill-s5fi', p, true);  })
+    .catch(()  => pillFail('pill-s5fi')));
+
+  all.push(fetchChange('RSP')
+    .then(p => { r.rsp = p;    applyPill('pill-rsp',  p, true);  })
+    .catch(()  => pillFail('pill-rsp')));
+
+  all.push(fetchChange('^VIX')
+    .then(p => { r.vix = p;    applyPill('pill-vix',  p, false); })
+    .catch(()  => pillFail('pill-vix')));
+
+  all.push(Promise.all([fetchChange('XLP'), fetchChange('SPY')])
+    .then(([n, d]) => { const p = ((1 + n/100)/(1 + d/100) - 1)*100; r.xlpspy = p; applyPill('pill-xlpspy', p, false); })
+    .catch(()      => pillFail('pill-xlpspy')));
+
+  all.push(Promise.all([fetchChange('XLY'), fetchChange('XLP')])
+    .then(([n, d]) => { const p = ((1 + n/100)/(1 + d/100) - 1)*100; r.xlyxlp = p; applyPill('pill-xly', p, true); })
+    .catch(()      => pillFail('pill-xly')));
+
+  const fallback = setTimeout(() => revealAndScore(r), 8000);
+  Promise.allSettled(all).then(() => {
+    clearTimeout(fallback);
+    window._pillsLoaded = true;
+    revealAndScore(r);
+    document.dispatchEvent(new Event('pillsReady'));
   });
 })();
 </script>
