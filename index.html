@@ -1306,8 +1306,12 @@ footer {
 /* ── Signal pills + Live Sentiment Score ── */
 (function signals() {
   const PROXIES = [
+    // 1. AllOrigins (Best for production, but uses a different JSON structure we handle below)
     url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    // 2. CodeTabs (Reliable backup)
+    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+    // 3. CorsProxy (Good fallback)
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`
   ];
 
   async function fetchChange(symbol) {
@@ -1447,8 +1451,14 @@ footer {
   const r = { xlpspy: null, xlyxlp: null, vix: null, rsp: null, spy: null };
   const all = [];
 
+  // 1. Fetch SPY silently for the backend sentiment score math
   all.push(fetchChange('SPY')
-    .then(p => { r.spy = p;    applyPill('pill-s5fi', p, true);  })
+    .then(p => { r.spy = p; })
+    .catch(e => console.error("SPY fetch failed", e)));
+
+  // 2. Fetch the actual Breadth Index for the UI pill
+  all.push(fetchChange('^S5FI') // Yahoo Finance usually requires the ^ prefix for indices
+    .then(p => { applyPill('pill-s5fi', p, false); }) 
     .catch(()  => pillFail('pill-s5fi')));
 
   all.push(fetchChange('RSP')
