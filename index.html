@@ -1306,12 +1306,14 @@ footer {
 /* ── Signal pills + Live Sentiment Score ── */
 (function signals() {
   const PROXIES = [
-    // 1. AllOrigins (Best for production, but uses a different JSON structure we handle below)
-    url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    // 2. CodeTabs (Reliable backup)
-    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-    // 3. CorsProxy (Good fallback)
-    url => `https://corsproxy.io/?${encodeURIComponent(url)}`
+    // Primary: CorsProxy.io (Usually the most reliable for Yahoo)
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    
+    // Fallback 1: AllOrigins RAW (Bypasses their JSON wrapper)
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    
+    // Fallback 2: Cors.lol (A newer, less rate-limited proxy)
+    url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`
   ];
 
   async function fetchChange(symbol) {
