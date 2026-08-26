@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BreadthView — Market Sentiment Dashboard</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
@@ -1976,24 +1977,8 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
     pill.querySelector('.pill-val').textContent = 'N/A';
   }
 
-  async function fetchBreadthValue() {
-    const tradingViewUrl = 'https://www.tradingview.com/symbols/INDEX-S5FI/';
-    let lastErr;
-    for (const makeProxy of PROXIES) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      try {
-        const response = await fetch(makeProxy(tradingViewUrl), { signal: controller.signal });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const html = await response.text();
-        const match = html.match(/"price"\s*:\s*(?:"([\d.]+)"|([\d.]+))/);
-        const value = match ? Number(match[1] ?? match[2]) : NaN;
-        if (!Number.isFinite(value)) throw new Error('breadth value unavailable');
-        return value;
-      } catch (e) { lastErr = e; }
-      finally { clearTimeout(timeout); }
-    }
-    throw lastErr;
+  function fetchBreadthValue() {
+    return Promise.reject(new Error('S5FI value unavailable on static hosting'));
   }
 
   function applyBreadthPill(value) {
