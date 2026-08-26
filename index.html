@@ -1,13 +1,1249 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f3f1eb" />
-    <title>BreadthView - Market Intelligence</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BreadthView — Market Sentiment Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════════════════════════
+   TOKENS
+══════════════════════════════════════════════════════════════ */
+:root {
+  /* Backgrounds — true dark, layered */
+  --ink-0: #080a0f;   /* page base */
+  --ink-1: #0c0f18;   /* chrome / nav */
+  --ink-2: #101420;   /* card surface */
+  --ink-3: #151a27;   /* card hover / raised */
+  --ink-4: #1c2233;   /* input / inner */
+
+  /* Borders — barely there to razor sharp */
+  --edge-0: rgba(255,255,255,0.04);
+  --edge-1: rgba(255,255,255,0.07);
+  --edge-2: rgba(255,255,255,0.11);
+  --edge-3: rgba(255,255,255,0.18);
+
+  /* Typography */
+  --t-0: #f0f2f7;   /* primary */
+  --t-1: #97a0b8;   /* secondary */
+  --t-2: #5c6680;   /* tertiary */
+  --t-3: #343d56;   /* disabled */
+
+  /* Semantic accents — muted, institutional */
+  --pos:        #2dd87b;
+  --pos-10:     rgba(45,216,123,0.10);
+  --pos-18:     rgba(45,216,123,0.18);
+  --pos-glow:   rgba(45,216,123,0.22);
+
+  --neg:        #e05c6a;
+  --neg-10:     rgba(224,92,106,0.10);
+  --neg-18:     rgba(224,92,106,0.18);
+
+  --vol:        #d4a847;
+  --vol-10:     rgba(212,168,71,0.10);
+  --vol-18:     rgba(212,168,71,0.18);
+
+  --neu:        #5b84d4;
+  --neu-10:     rgba(91,132,212,0.10);
+  --neu-18:     rgba(91,132,212,0.18);
+
+  /* Sentiment banner */
+  --caution:    #e08f4a;
+  --caution-10: rgba(224,143,74,0.10);
+
+  /* Fonts */
+  --ui:   'DM Sans',  system-ui, sans-serif;
+  --code: 'DM Mono',  'Courier New', monospace;
+
+  /* Shadows */
+  --sh-card: 0 1px 2px rgba(0,0,0,0.5), 0 4px 20px rgba(0,0,0,0.35);
+  --sh-card-hover: 0 2px 6px rgba(0,0,0,0.6), 0 12px 40px rgba(0,0,0,0.4);
+  --sh-sentiment: 0 2px 32px rgba(0,0,0,0.5);
+
+  /* Transitions */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Z-index scale */
+  --z-base: 1;
+  --z-sticky: 50;
+  --z-overlay: 200;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 13px; scroll-behavior: smooth; }
+body {
+  font-family: var(--ui);
+  background: var(--ink-0);
+  color: var(--t-0);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Grid line background — extremely subtle */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.013) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.013) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TOP NAV
+══════════════════════════════════════════════════════════════ */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  height: 48px;
+  background: rgba(12,15,24,0.85);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-bottom: 1px solid var(--edge-1);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 0;
+}
+
+/* Logo mark */
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #1e2d4a 0%, #0c1420 100%);
+  border: 1px solid var(--edge-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.logo-icon::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  left: -40%;
+  width: 180%;
+  height: 180%;
+  background: radial-gradient(circle, rgba(45,216,123,0.15) 0%, transparent 65%);
+}
+
+.logo-icon svg { position: relative; z-index: 1; }
+
+.logo-wordmark {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  gap: 1px;
+}
+
+.logo-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--t-0);
+  letter-spacing: -0.02em;
+}
+
+.logo-tag {
+  font-family: var(--code);
+  font-size: 9px;
+  color: var(--t-2);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Nav divider */
+.nav-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--edge-2);
+  margin: 0 18px;
+  flex-shrink: 0;
+}
+
+/* Nav links */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+
+.nav-link {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--t-2);
+  padding: 5px 11px;
+  border-radius: 6px;
+  cursor: default;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.nav-link:hover { color: var(--t-1); background: var(--edge-0); }
+.nav-link.active { color: var(--t-0); background: var(--ink-4); }
+
+/* Nav right */
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--pos-10);
+  border: 1px solid rgba(45,216,123,0.2);
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pos);
+  box-shadow: 0 0 6px var(--pos-glow);
+  animation: throb 2.8s ease-in-out infinite;
+}
+
+@keyframes throb {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.75); }
+}
+
+.status-text {
+  font-family: var(--code);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--pos);
+  letter-spacing: 0.05em;
+}
+
+.nav-clock {
+  font-family: var(--code);
+  font-size: 10.5px;
+  color: var(--t-2);
+  letter-spacing: 0.04em;
+  min-width: 108px;
+  text-align: right;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TICKER TAPE
+══════════════════════════════════════════════════════════════ */
+.tape {
+  height: 28px;
+  background: var(--ink-1);
+  border-bottom: 1px solid var(--edge-0);
+  overflow: hidden;
+  position: relative;
+  z-index: var(--z-base);
+}
+
+.tape::before,
+.tape::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 80px;
+  z-index: 2;
+  pointer-events: none;
+}
+.tape::before { left: 0; background: linear-gradient(to right, var(--ink-1), transparent); }
+.tape::after  { right: 0; background: linear-gradient(to left, var(--ink-1), transparent); }
+
+.tape-track {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  animation: tape-roll 80s linear infinite;
+  will-change: transform;
+  white-space: nowrap;
+}
+
+.tape-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 20px;
+  height: 100%;
+  border-right: 1px solid var(--edge-0);
+}
+
+.tape-sym {
+  font-family: var(--code);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--t-1);
+  letter-spacing: 0.05em;
+}
+
+.tape-lbl {
+  font-size: 9.5px;
+  color: var(--t-3);
+  font-weight: 400;
+}
+
+.tape-dot { color: var(--t-3); font-size: 8px; }
+
+@keyframes tape-roll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PAGE SHELL
+══════════════════════════════════════════════════════════════ */
+.shell {
+  position: relative;
+  z-index: var(--z-base);
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 24px 24px 48px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SENTIMENT BANNER — Executive Summary
+══════════════════════════════════════════════════════════════ */
+.sentiment-banner {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid var(--edge-2);
+  background: var(--ink-2);
+  box-shadow: var(--sh-sentiment);
+  overflow: hidden;
+  margin-bottom: 20px;
+  animation: rise 0.5s var(--ease) both;
+}
+
+/* Ambient gradient wash */
+.sentiment-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 80% at 0% 50%, rgba(224,143,74,0.07) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 100% at 100% 50%, rgba(91,132,212,0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Hairline top accent */
+.sentiment-banner::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--caution) 30%, var(--t-3) 100%);
+  opacity: 0.6;
+}
+
+.sb-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0;
+  padding: 20px 28px;
+}
+
+/* Left — Verdict */
+.sb-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 28px;
+  border-right: 1px solid var(--edge-1);
+}
+
+.sb-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sb-eyebrow-text {
+  font-family: var(--code);
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--t-2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sb-status-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--code);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--caution);
+  background: var(--caution-10);
+  border: 1px solid rgba(224,143,74,0.22);
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sb-verdict-text {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--t-0);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.sb-verdict-text em {
+  font-style: normal;
+  color: var(--caution);
+}
+
+.sb-subtitle {
+  font-size: 12px;
+  color: var(--t-2);
+  font-weight: 400;
+  line-height: 1.5;
+  max-width: 440px;
+}
+
+/* Center — Signal grid */
+.sb-signals {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0 28px;
+}
+
+.sb-signal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 0 22px;
+  border-right: 1px solid var(--edge-0);
+  min-width: 96px;
+}
+.sb-signal:last-child { border-right: none; }
+
+.sig-label {
+  font-family: var(--code);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--t-3);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.sig-value {
+  font-family: var(--code);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.sig-value.pos { color: var(--pos); }
+.sig-value.neg { color: var(--neg); }
+.sig-value.vol { color: var(--vol); }
+.sig-value.neu { color: var(--neu); }
+
+.sig-trend {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--t-3);
+}
+
+/* Right — Score gauge */
+.sb-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-left: 28px;
+  border-left: 1px solid var(--edge-1);
+}
+
+.gauge-label {
+  font-family: var(--code);
+  font-size: 9px;
+  color: var(--t-2);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+.gauge-ring {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+
+.gauge-ring svg {
+  transform: rotate(-90deg);
+}
+
+.gauge-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.gauge-num {
+  font-family: var(--code);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--caution);
+  line-height: 1;
+}
+
+.gauge-sub {
+  font-size: 8px;
+  color: var(--t-3);
+  letter-spacing: 0.05em;
+}
+
+.gauge-reading {
+  font-size: 10.5px;
+  color: var(--t-1);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SECTION HEADER
+══════════════════════════════════════════════════════════════ */
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  animation: rise 0.5s var(--ease) 0.1s both;
+}
+
+.section-eyebrow {
+  font-family: var(--code);
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--t-3);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.section-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--edge-1);
+}
+
+.section-count {
+  font-family: var(--code);
+  font-size: 9px;
+  color: var(--t-3);
+  background: var(--ink-4);
+  border: 1px solid var(--edge-1);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BENTO GRID
+══════════════════════════════════════════════════════════════ */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: auto;
+  gap: 12px;
+}
+
+/* Span helpers */
+.s-4  { grid-column: span 4; }
+.s-6  { grid-column: span 6; }
+.s-8  { grid-column: span 8; }
+.s-12 { grid-column: span 12; }
+
+/* Height helpers */
+.h-300 { height: 300px; }
+.h-340 { height: 340px; }
+.h-380 { height: 380px; }
+
+/* ══════════════════════════════════════════════════════════════
+   WIDGET CARD
+══════════════════════════════════════════════════════════════ */
+.wcard {
+  position: relative;
+  background: var(--ink-2);
+  border: 1px solid var(--edge-1);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--sh-card);
+  transition:
+    border-color 0.25s var(--ease),
+    box-shadow   0.25s var(--ease),
+    transform    0.25s var(--ease);
+  animation: rise 0.5s var(--ease) both;
+
+  /* Glassmorphism on hover needs a bg shift */
+  --card-bg: var(--ink-2);
+}
+
+.wcard:hover {
+  border-color: var(--edge-2);
+  box-shadow: var(--sh-card-hover);
+  transform: translateY(-1px);
+  --card-bg: var(--ink-3);
+}
+
+/* Stagger delays */
+.wcard:nth-child(1) { animation-delay: 0.08s; }
+.wcard:nth-child(2) { animation-delay: 0.13s; }
+.wcard:nth-child(3) { animation-delay: 0.18s; }
+.wcard:nth-child(4) { animation-delay: 0.23s; }
+.wcard:nth-child(5) { animation-delay: 0.28s; }
+.wcard:nth-child(6) { animation-delay: 0.33s; }
+.wcard:nth-child(7) { animation-delay: 0.38s; }
+
+/* Semantic top stripe */
+.wcard::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 10px 10px 0 0;
+  background: var(--stripe, var(--edge-1));
+  z-index: 2;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.wcard:hover::before { opacity: 1; }
+
+/* Ambient inner glow (per type) */
+.wcard::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 80px;
+  background: linear-gradient(180deg, var(--glow, transparent) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 10px 10px 0 0;
+}
+
+/* Type variants */
+.wcard.type-neg  { --stripe: var(--neg); --glow: var(--neg-10); }
+.wcard.type-pos  { --stripe: var(--pos); --glow: var(--pos-10); }
+.wcard.type-vol  { --stripe: var(--vol); --glow: var(--vol-10); }
+.wcard.type-neu  { --stripe: var(--neu); --glow: var(--neu-10); }
+
+/* ── Card header ── */
+.ch {
+  position: relative;
+  z-index: 3;
+  padding: 11px 14px 10px;
+  border-bottom: 1px solid var(--edge-1);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.015);
+}
+
+/* Left bar accent */
+.ch-bar {
+  width: 2.5px;
+  border-radius: 2px;
+  align-self: stretch;
+  margin-right: 10px;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+.wcard:hover .ch-bar { opacity: 1; }
+.type-neg .ch-bar { background: var(--neg); opacity: 0.6; }
+.type-pos .ch-bar { background: var(--pos); opacity: 0.6; }
+.type-vol .ch-bar { background: var(--vol); opacity: 0.6; }
+.type-neu .ch-bar { background: var(--neu); opacity: 0.6; }
+
+.ch-info { flex: 1; min-width: 0; }
+
+.ch-symbol {
+  font-family: var(--code);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t-0);
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.ch-name {
+  font-size: 10.5px;
+  color: var(--t-2);
+  font-weight: 400;
+  line-height: 1.3;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ch-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* Tags */
+.tag {
+  font-family: var(--code);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  line-height: 1.7;
+}
+
+.tag.neg  { background: var(--neg-10); color: var(--neg); border: 1px solid rgba(224,92,106,0.2); }
+.tag.pos  { background: var(--pos-10); color: var(--pos); border: 1px solid rgba(45,216,123,0.2); }
+.tag.vol  { background: var(--vol-10); color: var(--vol); border: 1px solid rgba(212,168,71,0.2); }
+.tag.neu  { background: var(--neu-10); color: var(--neu); border: 1px solid rgba(91,132,212,0.2); }
+
+.tag-interval {
+  font-family: var(--code);
+  font-size: 8.5px;
+  color: var(--t-3);
+  border: 1px solid var(--edge-1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 400;
+}
+
+/* ── Widget body ── */
+.wbody {
+  flex: 1;
+  min-height: 0;
+  background: var(--ink-3);
+  position: relative;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FOOTER
+══════════════════════════════════════════════════════════════ */
+footer {
+  position: relative;
+  z-index: var(--z-base);
+  margin-top: 12px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--edge-0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--ink-1);
+}
+
+.ft-text {
+  font-size: 10.5px;
+  color: var(--t-3);
+  line-height: 1.6;
+}
+.ft-text strong { color: var(--t-2); font-weight: 500; }
+
+.ft-chips {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.fc {
+  font-family: var(--code);
+  font-size: 9px;
+  color: var(--t-3);
+  border: 1px solid var(--edge-1);
+  padding: 3px 9px;
+  border-radius: 4px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ANIMATION
+══════════════════════════════════════════════════════════════ */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════════════════════ */
+@media (max-width: 1280px) {
+  .s-4 { grid-column: span 6; }
+}
+
+@media (max-width: 900px) {
+  .shell { padding: 16px 14px 32px; }
+  .s-4, .s-6, .s-8 { grid-column: span 12; }
+  .h-300, .h-340, .h-380 { height: 280px; }
+  .sb-inner { grid-template-columns: 1fr; gap: 20px; }
+  .sb-signals { flex-wrap: wrap; gap: 8px; }
+  .sb-gauge { border-left: none; border-top: 1px solid var(--edge-1); padding: 16px 0 0; }
+  .nav-links { display: none; }
+  .nav-sep { display: none; }
+}
+
+@media (max-width: 560px) {
+  .sb-verdict-text { font-size: 18px; }
+  .sb-signals { justify-content: flex-start; }
+  .sb-signal { min-width: 80px; padding: 0 14px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ NAV ══ -->
+<nav>
+  <a class="nav-logo" href="#">
+    <div class="logo-icon">
+      <svg width="14" height="12" viewBox="0 0 14 12" fill="none">
+        <rect x="0" y="7" width="2.5" height="5" rx="0.5" fill="#2dd87b" opacity="0.5"/>
+        <rect x="3.75" y="4.5" width="2.5" height="7.5" rx="0.5" fill="#2dd87b" opacity="0.7"/>
+        <rect x="7.5" y="2" width="2.5" height="10" rx="0.5" fill="#2dd87b"/>
+        <rect x="11.25" y="0" width="2.5" height="12" rx="0.5" fill="#2dd87b"/>
+      </svg>
+    </div>
+    <div class="logo-wordmark">
+      <span class="logo-name">BreadthView</span>
+      <span class="logo-tag">Institutional · v2.4</span>
+    </div>
+  </a>
+
+  <div class="nav-sep"></div>
+
+  <div class="nav-links">
+    <span class="nav-link active">Breadth &amp; Sentiment</span>
+    <span class="nav-link">Sector Flow</span>
+    <span class="nav-link">Macro Signals</span>
+    <span class="nav-link">Volatility Surface</span>
+    <span class="nav-link">Options Flow</span>
+  </div>
+
+  <div class="nav-right">
+    <div class="status-pill">
+      <span class="status-dot"></span>
+      <span class="status-text">LIVE</span>
+    </div>
+    <div class="nav-clock" id="clock">—</div>
+  </div>
+</nav>
+
+<!-- ══ TICKER TAPE ══ -->
+<div class="tape">
+  <div class="tape-track" id="tapeTrack"></div>
+</div>
+
+<!-- ══ PAGE SHELL ══ -->
+<div class="shell">
+
+  <!-- ══ SENTIMENT BANNER ══ -->
+  <div class="sentiment-banner">
+    <div class="sb-inner">
+
+      <!-- Left: Verdict -->
+      <div class="sb-verdict">
+        <div class="sb-eyebrow">
+          <span class="sb-eyebrow-text">General Market Sentiment</span>
+          <span class="sb-status-chip">
+            <svg width="6" height="6" viewBox="0 0 6 6"><circle cx="3" cy="3" r="3" fill="currentColor"/></svg>
+            Elevated Caution
+          </span>
+        </div>
+        <div class="sb-verdict-text">Mixed Signal — <em>Proceed with Caution</em></div>
+        <div class="sb-subtitle">Defensive rotation into Utilities (XLU) and Staples (XLP) is outpacing growth exposure. Breadth indicators show &lt;50% of S&amp;P 500 stocks holding above key moving averages, suggesting deteriorating internal momentum beneath headline index levels.</div>
+      </div>
+
+      <!-- Center: Signal Summary -->
+      <div class="sb-signals">
+        <div class="sb-signal">
+          <span class="sig-label">Breadth MA200</span>
+          <span class="sig-value neg" id="s-s5th">Loading</span>
+          <span class="sig-trend">S5TH · Long-term</span>
+        </div>
+        <div class="sb-signal">
+          <span class="sig-label">Breadth MA50</span>
+          <span class="sig-value neg" id="s-s5fi">Loading</span>
+          <span class="sig-trend">S5FI · Near-term</span>
+        </div>
+        <div class="sb-signal">
+          <span class="sig-label">Risk Appetite</span>
+          <span class="sig-value vol">XLY/XLP</span>
+          <span class="sig-trend">Discretionary vs Staples</span>
+        </div>
+        <div class="sb-signal">
+          <span class="sig-label">Volatility</span>
+          <span class="sig-value vol" id="s-vix">VIX</span>
+          <span class="sig-trend">Fear Index</span>
+        </div>
+        <div class="sb-signal">
+          <span class="sig-label">Equal Weight</span>
+          <span class="sig-value neu">RSP</span>
+          <span class="sig-trend">Participation</span>
+        </div>
+      </div>
+
+      <!-- Right: Composite Score -->
+      <div class="sb-gauge">
+        <span class="gauge-label">Sentiment Score</span>
+        <div class="gauge-ring">
+          <svg width="72" height="72" viewBox="0 0 72 72">
+            <!-- Track -->
+            <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5"/>
+            <!-- Progress — 38% caution score -->
+            <circle
+              cx="36" cy="36" r="30"
+              fill="none"
+              stroke="var(--caution)"
+              stroke-width="5"
+              stroke-linecap="round"
+              stroke-dasharray="188.5"
+              stroke-dashoffset="116.9"
+              style="transition: stroke-dashoffset 1.2s cubic-bezier(0.16,1,0.3,1) 0.5s;"
+            />
+          </svg>
+          <div class="gauge-pct">
+            <span class="gauge-num">38</span>
+            <span class="gauge-sub">/ 100</span>
+          </div>
+        </div>
+        <span class="gauge-reading">Caution Zone</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ SECTION HEADER ══ -->
+  <div class="section-head">
+    <span class="section-eyebrow">Live Market Indicators</span>
+    <div class="section-rule"></div>
+    <span class="section-count">7 signals · Daily</span>
+  </div>
+
+  <!-- ══ BENTO GRID ══ -->
+  <div class="bento">
+
+    <!-- ① XLP / SPY — Defensive ratio -->
+    <div class="wcard type-neg s-6 h-340">
+      <div class="ch">
+        <div class="ch-bar"></div>
+        <div class="ch-info">
+          <div class="ch-symbol">XLP / SPY</div>
+          <div class="ch-name">Consumer Staples ÷ S&amp;P 500 — defensive rotation proxy</div>
+        </div>
+        <div class="ch-meta">
+          <span class="tag-interval">1D</span>
+          <span class="tag neg">Risk-Off</span>
+        </div>
+      </div>
+      <div class="wbody">
+        <div class="tradingview-widget-container" style="height:100%;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {
+            "autosize":true,"symbol":"AMEX:XLP/AMEX:SPY","interval":"D","timezone":"Etc/UTC",
+            "theme":"dark","style":"1","locale":"en",
+            "backgroundColor":"rgba(21,26,39,1)","gridColor":"rgba(255,255,255,0.04)",
+            "hide_top_toolbar":false,"hide_legend":false,"save_image":false,
+            "calendar":false,"hide_volume":true,"support_host":"https://www.tradingview.com"
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② XLU — Utilities -->
+    <div class="wcard type-neg s-6 h-340">
+      <div class="ch">
+        <div class="ch-bar"></div>
+        <div class="ch-info">
+          <div class="ch-symbol">XLU</div>
+          <div class="ch-name">Utilities Select Sector SPDR Fund — safe-haven demand</div>
+        </div>
+        <div class="ch-meta">
+          <span class="tag-interval">1D</span>
+          <span class="tag neg">Defensive</span>
+        </div>
+      </div>
+      <div class="wbody">
+        <div class="tradingview-widget-container" style="height:100%;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {
+            "autosize":true,"symbol":"AMEX:XLU","interval":"D","timezone":"Etc/UTC",
+            "theme":"dark","style":"1","locale":"en",
+            "backgroundColor":"rgba(21,26,39,1)","gridColor":"rgba(255,255,255,0.04)",
+            "hide_top_toolbar":false,"hide_legend":false,"save_image":false,
+            "calendar":false,"hide_volume":false,"support_host":"https://www.tradingview.com"
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ VIX -->
+    <div class="wcard type-vol s-4 h-380">
+      <div class="ch">
+        <div class="ch-bar"></div>
+        <div class="ch-info">
+          <div class="ch-symbol">VIX</div>
+          <div class="ch-name">CBOE Volatility S&amp;P 500 Index — implied fear gauge</div>
+        </div>
+        <div class="ch-meta">
+          <span class="tag-interval">1D</span>
+          <span class="tag vol">Volatility</span>
+        </div>
+      </div>
+      <div class="wbody">
+        <div class="tradingview-widget-container" style="height:100%;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {
+            "autosize":true,"symbol":"TVC:VIX","interval":"D","timezone":"Etc/UTC",
+            "theme":"dark","style":"1","locale":"en",
+            "backgroundColor":"rgba(21,26,39,1)","gridColor":"rgba(255,255,255,0.04)",
+            "hide_top_toolbar":false,"hide_legend":false,"save_image":false,
+            "calendar":false,"hide_volume":true,"support_host":"https://www.tradingview.com"
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ XLY / XLP -->
+    <div class="wcard type-pos s-4 h-380">
+      <div class="ch">
+        <div class="ch-bar"></div>
+        <div class="ch-info">
+          <div class="ch-symbol">XLY / XLP</div>
+          <div class="ch-name">Discretionary ÷ Staples — risk appetite signal</div>
+        </div>
+        <div class="ch-meta">
+          <span class="tag-interval">1D</span>
+          <span class="tag pos">Risk-On</span>
+        </div>
+      </div>
+      <div class="wbody">
+        <div class="tradingview-widget-container" style="height:100%;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {
+            "autosize":true,"symbol":"AMEX:XLY/AMEX:XLP","interval":"D","timezone":"Etc/UTC",
+            "theme":"dark","style":"1","locale":"en",
+            "backgroundColor":"rgba(21,26,39,1)","gridColor":"rgba(255,255,255,0.04)",
+            "hide_top_toolbar":false,"hide_legend":false,"save_image":false,
+            "calendar":false,"hide_volume":true,"support_host":"https://www.tradingview.com"
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ RSP -->
+    <div class="wcard type-pos s-4 h-380">
+      <div class="ch">
+        <div class="ch-bar"></div>
+        <div class="ch-info">
+          <div class="ch-symbol">RSP</div>
+          <div class="ch-name">Invesco S&amp;P 500 Equal Weight ETF — participation breadth</div>
+        </div>
+        <div class="ch-meta">
+          <span class="tag-interval">1D</span>
+          <span class="tag pos">Breadth</span>
+        </div>
+      </div>
+      <div class="wbody">
+        <div class="tradingview-widget-container" style="height:100%;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {
+            "autosize":true,"symbol":"AMEX:RSP","interval":"D","timezone":"Etc/UTC",
+            "theme":"dark","style":"1","locale":"en",
+            "backgroundColor":"rgba(21,26,39,1)","gridColor":"rgba(255,255,255,0.04)",
+            "hide_top_toolbar":false,"hide_legend":false,"save_image":false,
+            "calendar":false,"hide_volume":false,"support_host":"https://www.tradingview.com"
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑥ S5TH — % Above 200 DMA -->
+    <div class="wcard type-neu s-6 h-380">
+      <div class="ch">
+        <div class="ch-bar"></div>
+        <div class="ch-info">
+          <div class="ch-symbol">S5TH</div>
+          <div class="ch-name">% of S&amp;P 500 stocks above 200-day MA — long-term breadth health</div>
+        </div>
+        <div class="ch-meta">
+          <span class="tag-interval">1D</span>
+          <span class="tag neu">200-DMA</span>
+        </div>
+      </div>
+      <div class="wbody">
+        <div class="tradingview-widget-container" style="height:100%;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {
+            "autosize":true,"symbol":"S5TH","interval":"D","timezone":"Etc/UTC",
+            "theme":"dark","style":"1","locale":"en",
+            "backgroundColor":"rgba(21,26,39,1)","gridColor":"rgba(255,255,255,0.04)",
+            "hide_top_toolbar":false,"hide_legend":false,"save_image":false,
+            "calendar":false,"hide_volume":true,"support_host":"https://www.tradingview.com"
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑦ S5FI — % Above 50 DMA -->
+    <div class="wcard type-neu s-6 h-380">
+      <div class="ch">
+        <div class="ch-bar"></div>
+        <div class="ch-info">
+          <div class="ch-symbol">S5FI</div>
+          <div class="ch-name">% of S&amp;P 500 stocks above 50-day MA — near-term momentum pulse</div>
+        </div>
+        <div class="ch-meta">
+          <span class="tag-interval">1D</span>
+          <span class="tag neu">50-DMA</span>
+        </div>
+      </div>
+      <div class="wbody">
+        <div class="tradingview-widget-container" style="height:100%;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {
+            "autosize":true,"symbol":"S5FI","interval":"D","timezone":"Etc/UTC",
+            "theme":"dark","style":"1","locale":"en",
+            "backgroundColor":"rgba(21,26,39,1)","gridColor":"rgba(255,255,255,0.04)",
+            "hide_top_toolbar":false,"hide_legend":false,"save_image":false,
+            "calendar":false,"hide_volume":true,"support_host":"https://www.tradingview.com"
+          }
+          </script>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /bento -->
+</div><!-- /shell -->
+
+<!-- ══ FOOTER ══ -->
+<footer>
+  <p class="ft-text">
+    <strong>Data — TradingView.</strong> All charts display live market data.
+    Ratios computed natively (XLP/SPY, XLY/XLP). S5TH &amp; S5FI: S&amp;P Dow Jones breadth indices.
+    VIX via TVC feed. Sentiment score is a static illustrative composite — not financial advice.
+  </p>
+  <div class="ft-chips">
+    <span class="fc">TradingView Widgets</span>
+    <span class="fc">No API Key</span>
+    <span class="fc">Real-Time</span>
+  </div>
+</footer>
+
+<!-- ══ SCRIPTS ══ -->
+<script>
+/* ── Clock ── */
+(function clock() {
+  function tick() {
+    const et = new Date().toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false, timeZone: 'America/New_York'
+    });
+    document.getElementById('clock').textContent = et + ' ET';
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+
+/* ── Ticker tape ── */
+(function tape() {
+  const items = [
+    { s:'XLP/SPY',  l:'Defensive Ratio'    },
+    { s:'XLU',      l:'Utilities ETF'      },
+    { s:'TVC:VIX',  l:'Fear Index'         },
+    { s:'XLY/XLP',  l:'Risk Appetite'      },
+    { s:'RSP',      l:'Equal Weight ETF'   },
+    { s:'S5TH',     l:'% Above 200D'       },
+    { s:'S5FI',     l:'% Above 50D'        },
+    { s:'SPY',      l:'S&P 500 ETF'        },
+    { s:'QQQ',      l:'NASDAQ 100 ETF'     },
+    { s:'IWM',      l:'Russell 2000'       },
+    { s:'DIA',      l:'Dow Jones ETF'      },
+    { s:'GLD',      l:'Gold ETF'           },
+    { s:'TLT',      l:'20Y Treasury ETF'   },
+    { s:'HYG',      l:'High Yield Bonds'   },
+  ];
+  const track = document.getElementById('tapeTrack');
+  [...items, ...items].forEach(({ s, l }) => {
+    const el = document.createElement('span');
+    el.className = 'tape-item';
+    el.innerHTML = `<span class="tape-sym">${s}</span><span class="tape-dot">·</span><span class="tape-lbl">${l}</span>`;
+    track.appendChild(el);
+  });
+})();
+
+/* ── Gauge animation on load ── */
+(function animateGauge() {
+  const circle = document.querySelector('.gauge-ring circle:last-child');
+  if (!circle) return;
+  // Already has CSS transition via inline style; just trigger it
+  requestAnimationFrame(() => {
+    circle.style.strokeDashoffset = '116.9';
+  });
+})();
+</script>
+</body>
 </html>
