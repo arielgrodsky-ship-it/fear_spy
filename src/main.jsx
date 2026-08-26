@@ -1,14 +1,17 @@
-import { StrictMode, useEffect, useState } from 'react';
+import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArrowUpRight, BarChart3, Bell, ChevronDown, LayoutGrid, Moon, Search, Sun, Zap } from 'lucide-react';
 import './styles.css';
 import { demoSnapshot, loadMarketSnapshot } from './data/market.js';
 
 const cards = [
-  { symbol: 'S5FI', title: '% above 50-day average', value: '46.2%', change: '-3.8 pts', tone: 'neutral', size: 'feature', description: 'Participation is thinning beneath the index.' },
-  { symbol: 'XLP / SPY', title: 'Defensive rotation', value: '+0.42%', change: 'today', tone: 'caution', size: 'standard', description: 'Staples are quietly outperforming beta.' },
-  { symbol: 'XLY / XLP', title: 'Risk appetite', value: '-0.28%', change: 'today', tone: 'negative', size: 'standard', description: 'Discretionary leadership is losing altitude.' },
-  { symbol: 'RSP', title: 'Equal-weight participation', value: '-0.14%', change: 'today', tone: 'negative', size: 'wide', description: 'A softer read than capitalization-weighted SPY.' },
+  { symbol: 'XLP / SPY', title: 'Consumer Staples / S&P 500', tv: 'AMEX:XLP/AMEX:SPY', tone: 'negative', size: 'wide', description: 'Defensive rotation proxy.' },
+  { symbol: 'XLU', title: 'Utilities Select Sector SPDR', tv: 'AMEX:XLU', tone: 'caution', size: 'wide', description: 'Safe-haven demand.' },
+  { symbol: 'VIX', title: 'CBOE Volatility Index', tv: 'TVC:VIX', tone: 'negative', size: 'standard', description: 'Implied fear gauge.' },
+  { symbol: 'XLY / XLP', title: 'Discretionary / Staples', tv: 'AMEX:XLY/AMEX:XLP', tone: 'positive', size: 'standard', description: 'Risk appetite signal.' },
+  { symbol: 'RSP', title: 'S&P 500 Equal Weight ETF', tv: 'AMEX:RSP', tone: 'positive', size: 'standard', description: 'Participation breadth.' },
+  { symbol: 'S5TH', title: 'Stocks above 200-day MA', tv: 'S5TH', tone: 'neutral', size: 'standard', description: 'Long-term breadth health.' },
+  { symbol: 'S5FI', title: 'Stocks above 50-day MA', tv: 'S5FI', tone: 'neutral', size: 'standard', description: 'Near-term momentum pulse.' },
 ];
 
 function App() {
@@ -50,7 +53,7 @@ function App() {
           <div><span className="section-index">01</span><h2>Market pulse</h2></div>
           <button className="quiet-button"><LayoutGrid size={15} /> Configure view</button>
         </div>
-        <BentoGrid loading={loading} />
+        <BentoGrid loading={loading} snapshot={snapshot} />
       </main>
       <footer><span><strong>BreadthView</strong> / Decision support for curious investors</span><span>Data is delayed · Not investment advice</span></footer>
     </div>
@@ -77,13 +80,30 @@ function SentimentBanner({ loading, snapshot }) {
   </section>;
 }
 
-function BentoGrid({ loading }) {
-  return <div className="bento">{cards.map(card => <article className={`widget-card ${card.size} ${card.tone}`} key={card.symbol}><div className="card-head"><div><span className="card-symbol">{card.symbol}</span><h3>{card.title}</h3></div><button className="card-menu" aria-label={`Open ${card.symbol} details`}><ArrowUpRight size={17} /></button></div><div className="card-metric">{loading ? <span className="skeleton metric-skeleton" /> : <><strong>{card.value}</strong><span className={card.tone}>{card.change}</span></>}</div><div className="chart" aria-label={`${card.symbol} chart placeholder`}><ChartShape tone={card.tone} /></div><div className="card-foot"><span>{card.description}</span><span className="chart-label">1D <ChevronDown size={13} /></span></div></article>)}</div>;
+function BentoGrid({ loading, snapshot }) {
+  return <div className="bento">{cards.map(card => <article className={`widget-card ${card.size} ${card.tone}`} key={card.symbol}><div className="card-head"><div><span className="card-symbol">{card.symbol}</span><h3>{card.title}</h3></div><button className="card-menu" aria-label={`Open ${card.symbol} details`}><ArrowUpRight size={17} /></button></div><div className="card-metric">{loading ? <span className="skeleton metric-skeleton" /> : <><strong>{card.symbol === 'S5FI' ? snapshot.signals.find(item => item.symbol === 'S5FI')?.value : 'LIVE'}</strong><span className={card.tone}>1D</span></>}</div><TradingViewChart symbol={card.tv} /><div className="card-foot"><span>{card.description}</span><span className="chart-label">1D <ChevronDown size={13} /></span></div></article>)}</div>;
 }
 
-function ChartShape({ tone }) {
-  const color = tone === 'negative' ? '#cc5e50' : tone === 'caution' ? '#c38a35' : tone === 'positive' ? '#087a52' : '#367f99';
-  return <svg viewBox="0 0 520 140" preserveAspectRatio="none" role="img"><path d="M0 115 C45 98, 58 112, 92 92 S145 110, 180 78 S225 84, 255 69 S300 80, 330 42 S365 64, 402 37 S455 60, 520 20" fill="none" stroke={color} strokeWidth="2.5" /><path d="M0 115 C45 98, 58 112, 92 92 S145 110, 180 78 S225 84, 255 69 S300 80, 330 42 S365 64, 402 37 S455 60, 520 20 V140 H0Z" fill={color} opacity=".08" /></svg>;
+function TradingViewChart({ symbol }) {
+  const hostRef = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } }, { rootMargin: '300px' });
+    if (hostRef.current) observer.observe(hostRef.current);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!visible || !hostRef.current || hostRef.current.dataset.loaded) return;
+    hostRef.current.dataset.loaded = 'true';
+    const widget = document.createElement('div');
+    widget.className = 'tradingview-widget-container__widget';
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.async = true;
+    script.innerHTML = JSON.stringify({ autosize: true, symbol, interval: 'D', timezone: 'Etc/UTC', theme: 'dark', style: '1', locale: 'en', backgroundColor: 'rgba(18,27,32,1)', gridColor: 'rgba(255,255,255,0.04)', hide_top_toolbar: false, hide_legend: false, save_image: false, calendar: false, hide_volume: true, support_host: 'https://www.tradingview.com' });
+    hostRef.current.append(widget, script);
+  }, [symbol, visible]);
+  return <div className="chart tradingview-widget-container" ref={hostRef} aria-label={`${symbol} TradingView chart`}><span className="chart-loading">{visible ? 'Loading chart...' : 'Chart loads on view'}</span></div>;
 }
 
 createRoot(document.getElementById('root')).render(<StrictMode><App /></StrictMode>);
