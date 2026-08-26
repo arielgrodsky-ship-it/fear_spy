@@ -1983,9 +1983,21 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
 
   function applyBreadthPill(value) {
     const pill = document.getElementById('pill-s5fi');
-    const zone = value >= 70 ? 'breadth-high' : value <= 30 ? 'breadth-low' : 'neutral';
+    const zone = value < 60 ? 'breadth-low' : 'breadth-high';
     pill.className = `sig-pill ${zone}`;
     pill.querySelector('.pill-val').textContent = `${value.toFixed(2)}%`;
+  }
+
+  // A correction alert requires every directional condition plus breadth < 60%.
+  function correctionConditionsMet(r, breadth) {
+    return [
+      r.xlpspy !== null && r.xlpspy > 0,
+      r.xlu !== null && r.xlu > 0,
+      r.xlyxlp !== null && r.xlyxlp < 0,
+      r.rsp !== null && r.rsp < 0,
+      r.vix !== null && r.vix > 0,
+      breadth !== null && breadth < 60,
+    ].every(Boolean);
   }
 
   function scoreSignal(pct, bullish) {
@@ -2056,6 +2068,7 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
     const score = Math.round((total / (count * 20)) * 100);
     applyVerdict(score);
     runGauge(score);
+    document.body.dataset.correctionReady = correctionConditionsMet(r, breadthValue) ? 'true' : 'false';
     document.querySelector('.sentiment-banner')?.classList.add('is-loaded');
   }
 
@@ -2068,11 +2081,12 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
   const vixP   = fetchChange('^VIX');
   const breadthP = Promise.resolve(58.25);
 
-  const r = { xlpspy: null, xlyxlp: null, vix: null, rsp: null, spy: null };
+  const r = { xlpspy: null, xlyxlp: null, xlu: null, vix: null, rsp: null, spy: null };
+  let breadthValue = null;
   const all = [
     spyP.then(p => { r.spy = p; }),
-    xluP.then(p => { applyPill('pill-xlu', p, true); }).catch(() => pillFail('pill-xlu')),
-    breadthP.then(applyBreadthPill).catch(() => pillFail('pill-s5fi')),
+    xluP.then(p => { r.xlu = p; applyPill('pill-xlu', p, true); }).catch(() => pillFail('pill-xlu')),
+    breadthP.then(value => { breadthValue = value; applyBreadthPill(value); }).catch(() => pillFail('pill-s5fi')),
     rspP.then(p => { r.rsp = p; applyPill('pill-rsp', p, false); }).catch(() => pillFail('pill-rsp')),
     vixP.then(p => { r.vix = p; applyPill('pill-vix', p, true); }).catch(() => pillFail('pill-vix')),
     Promise.all([xlpP, spyP])
