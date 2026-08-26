@@ -14,7 +14,6 @@ const demoSnapshot = {
     { symbol: 'VIX', name: 'Fear index', value: '16.8', tone: 'negative', note: 'Contained' },
     { symbol: 'XLY / XLP', name: 'Risk appetite', value: '-0.28%', tone: 'negative', note: 'Fading' },
     { symbol: 'RSP', name: 'Equal-weight breadth', value: '-0.14%', tone: 'negative', note: 'Lagging' },
-    { symbol: 'S5TH', name: 'Stocks above 200D MA', value: '58.4%', tone: 'neutral', note: 'Long-term' },
     { symbol: 'S5FI', name: 'Stocks above 50D MA', value: '46.2%', tone: 'neutral', note: 'Narrowing' },
   ],
 };
@@ -63,14 +62,22 @@ const scoreSignal = (change, bullish) => 10 + (((change >= 0) === bullish ? 1 : 
 
 export async function loadMarketSnapshot(signal) {
   try {
-    const [spy, xlp, xlu, xly, rsp, vix, s5fi] = await Promise.all([
+    const results = await Promise.allSettled([
       fetchChange('SPY'), fetchChange('XLP'), fetchChange('XLU'), fetchChange('XLY'),
       fetchChange('RSP'), fetchChange('^VIX'), fetchBreadthValue(),
     ]);
+    const values = results.map(result => result.status === 'fulfilled' ? result.value : null);
+    const [spy, xlp, xlu, xly, rsp, vix, s5fi] = values;
+    if (values.every(value => value === null)) throw new Error('No market data available');
     const ratio = (numerator, denominator) => ((1 + numerator / 100) / (1 + denominator / 100) - 1) * 100;
-    const changes = { spy, xlp, xlu, xly, rsp, vix, xlpspy: ratio(xlp, spy), xlyxlp: ratio(xly, xlp) };
-    const score = Math.round(([scoreSignal(changes.xlpspy, true), scoreSignal(changes.xlyxlp, false), scoreSignal(vix, false), scoreSignal(rsp, true), scoreSignal(spy, true)].reduce((total, value) => total + value, 0) / 100) * 100);
-    return { ...demoSnapshot, score, refreshedAt: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), signals: demoSnapshot.signals.map(item => ({ ...item, value: item.symbol === 'XLP / SPY' ? `${changes.xlpspy >= 0 ? '+' : ''}${changes.xlpspy.toFixed(2)}%` : item.symbol === 'XLU' ? `${xlu >= 0 ? '+' : ''}${xlu.toFixed(2)}%` : item.symbol === 'VIX' ? vix.toFixed(2) : item.symbol === 'XLY / XLP' ? `${changes.xlyxlp >= 0 ? '+' : ''}${changes.xlyxlp.toFixed(2)}%` : item.symbol === 'RSP' ? `${rsp >= 0 ? '+' : ''}${rsp.toFixed(2)}%` : item.symbol === 'S5FI' ? `${s5fi.toFixed(2)}%` : item.value })) };
+    const xlpspy = xlp !== null && spy !== null ? ratio(xlp, spy) : null;
+    const xlyxlp = xly !== null && xlp !== null ? ratio(xly, xlp) : null;
+    const scored = [[xlpspy, true], [xlyxlp, false], [vix, false], [rsp, true], [spy, true]]
+      .filter(([value]) => value !== null)
+      .map(([value, bullish]) => scoreSignal(value, bullish));
+    const score = scored.length ? Math.round((scored.reduce((total, value) => total + value, 0) / (scored.length * 20)) * 100) : 50;
+    const formatChange = value => value === null ? 'N/A' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+    return { ...demoSnapshot, score, source: 'live', refreshedAt: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), signals: demoSnapshot.signals.map(item => ({ ...item, value: item.symbol === 'XLP / SPY' ? formatChange(xlpspy) : item.symbol === 'XLU' ? formatChange(xlu) : item.symbol === 'VIX' ? (vix === null ? 'N/A' : vix.toFixed(2)) : item.symbol === 'XLY / XLP' ? formatChange(xlyxlp) : item.symbol === 'RSP' ? formatChange(rsp) : item.symbol === 'S5FI' ? (s5fi === null ? 'N/A' : `${s5fi.toFixed(2)}%`) : item.value })) };
   } catch {
     return { ...demoSnapshot, source: 'demo fallback' };
   }

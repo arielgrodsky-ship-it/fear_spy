@@ -81,7 +81,7 @@ function SentimentBanner({ loading, snapshot }) {
 }
 
 function BentoGrid({ loading, snapshot }) {
-  return <div className="bento">{cards.map(card => <article className={`widget-card ${card.size} ${card.tone}`} key={card.symbol}><div className="card-head"><div><span className="card-symbol">{card.symbol}</span><h3>{card.title}</h3></div><button className="card-menu" aria-label={`Open ${card.symbol} details`}><ArrowUpRight size={17} /></button></div><div className="card-metric">{loading ? <span className="skeleton metric-skeleton" /> : <><strong>{card.symbol === 'S5FI' ? snapshot.signals.find(item => item.symbol === 'S5FI')?.value : 'LIVE'}</strong><span className={card.tone}>1D</span></>}</div><TradingViewChart symbol={card.tv} /><div className="card-foot"><span>{card.description}</span><span className="chart-label">1D <ChevronDown size={13} /></span></div></article>)}</div>;
+  return <div className="bento">{cards.map(card => { const value = snapshot.signals.find(item => item.symbol === card.symbol)?.value ?? 'N/A'; return <article className={`widget-card ${card.size} ${card.tone}`} key={card.symbol}><div className="card-head"><div><span className="card-symbol">{card.symbol}</span><h3>{card.title}</h3></div><button className="card-menu" aria-label={`Open ${card.symbol} details`}><ArrowUpRight size={17} /></button></div><div className="card-metric">{loading ? <span className="skeleton metric-skeleton" /> : <><strong>{value}</strong><span className={card.tone}>1D</span></>}</div><TradingViewChart symbol={card.tv} /><div className="card-foot"><span>{card.description}</span><span className="chart-label">1D <ChevronDown size={13} /></span></div></article>; })}</div>;
 }
 
 function TradingViewChart({ symbol }) {
