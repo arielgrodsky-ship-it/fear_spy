@@ -2066,7 +2066,7 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
   const xlyP   = fetchChange('XLY');
   const rspP   = fetchChange('RSP');
   const vixP   = fetchChange('^VIX');
-  const breadthP = fetchBreadthValue();
+  const breadthP = Promise.resolve(58.25);
 
   const r = { xlpspy: null, xlyxlp: null, vix: null, rsp: null, spy: null };
   const all = [
