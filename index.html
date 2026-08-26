@@ -1920,10 +1920,10 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
 /* ── Signal pills + Live Sentiment Score ── */
 (function signals() {
   const PROXIES = [
-    url => url,
     url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
     url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-    url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`
+    url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`,
+    url => url
   ];
 
   const cache = {}; // ← dedupe concurrent identical fetches
