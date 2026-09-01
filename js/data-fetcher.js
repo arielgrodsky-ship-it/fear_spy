@@ -6,9 +6,10 @@
 const CONFIG = {
   FETCH_TIMEOUT: 5000,
   CORSPROXY_URLS: [
-    url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+    url => `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(url)}`,
     url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-    url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`,
+    url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
     url => url
   ],
   POLL_INTERVAL: 60000, // 1 minute
