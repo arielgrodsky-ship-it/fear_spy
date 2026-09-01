@@ -1977,8 +1977,41 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
     pill.querySelector('.pill-val').textContent = 'N/A';
   }
 
-  function fetchBreadthValue() {
-    return Promise.reject(new Error('S5FI value unavailable on static hosting'));
+  async function fetchBreadthValue() {
+    const pageUrl = 'https://www.tradingview.com/symbols/INDEX-S5FI/';
+    const proxies = [
+      url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+      url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`,
+      url => url,
+    ];
+
+    let lastErr;
+    for (const makeProxy of proxies) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await fetch(makeProxy(pageUrl), {
+          signal: controller.signal,
+          headers: { Accept: 'text/html' }
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const html = await response.text();
+        const values = [...html.matchAll(/"price"\s*:\s*(?:"([\d.]+)"|([\d.]+))/g)]
+          .map(match => Number(match[1] ?? match[2]))
+          .filter(Number.isFinite);
+        const value = values.at(-1);
+        if (Number.isFinite(value)) return value;
+        throw new Error('S5FI price not found');
+      } catch (error) {
+        lastErr = error;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    throw lastErr || new Error('S5FI value unavailable');
   }
 
   function applyBreadthPill(value) {
@@ -2079,7 +2112,7 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
   const xlyP   = fetchChange('XLY');
   const rspP   = fetchChange('RSP');
   const vixP   = fetchChange('^VIX');
-  const breadthP = Promise.resolve(58.25);
+  const breadthP = fetchBreadthValue();
 
   const r = { xlpspy: null, xlyxlp: null, xlu: null, vix: null, rsp: null, spy: null };
   let breadthValue = null;

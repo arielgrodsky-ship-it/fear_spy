@@ -43,8 +43,10 @@ async function fetchS5FI() {
       const response = await fetch(makeUrl(url), { signal: controller.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const html = await response.text();
-      const match = html.match(/"price"\s*:\s*(?:"([\d.]+)"|([\d.]+))/);
-      const value = match ? Number(match[1] ?? match[2]) : NaN;
+      const prices = [...html.matchAll(/"price"\s*:\s*(?:"([\d.]+)"|([\d.]+))/g)]
+        .map(match => Number(match[1] ?? match[2]))
+        .filter(Number.isFinite);
+      const value = prices.at(-1);
       if (Number.isFinite(value)) return value;
     } catch {
       // Try the next source.
