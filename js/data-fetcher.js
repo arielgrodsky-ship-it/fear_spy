@@ -10,7 +10,7 @@
  */
 async function fetchAllData() {
   // Add a cache-busting query param so the browser always gets the latest file
-  const url = `./data.json?t=${Date.now()}`;
+  const url = `./backend/data.json?t=${Date.now()}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
