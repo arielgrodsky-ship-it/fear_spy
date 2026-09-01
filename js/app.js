@@ -20,7 +20,7 @@ class BreadthViewApp {
     // Auto-refresh rate: how often to fetch fresh data (in milliseconds)
     // Default: 30000ms = 30 seconds (adjust to your preference)
     // Production use: 60000ms = 1 minute or higher to avoid rate limits
-    this.pollRate = 30000;
+    this.pollRate = 15 * 60 * 1000; // match GitHub Actions cadence
   }
 
   /**
@@ -74,7 +74,7 @@ class BreadthViewApp {
       clearTimeout(this.timeoutWarningTimeout);
       this.ui.showError(
         `Unable to load market data. ${error.message} ` +
-        `Please check your internet connection and try again.`
+        `GitHub Actions updates data every 15 minutes. If the file is missing, run the workflow manually from the Actions tab.`
       );
       console.error('App error:', error);
       
