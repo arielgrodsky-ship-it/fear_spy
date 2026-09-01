@@ -602,27 +602,28 @@ nav {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 999px;
   font-family: var(--code);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.04em;
-  border: 1px solid transparent;
-  transition: background 0.3s, color 0.3s, border-color 0.3s;
+  border: 1.5px solid transparent;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
   /* default neutral while loading */
-  background: var(--neu-10);
-  color: var(--neu);
-  border-color: rgba(88,184,255,0.45);
+  background: rgba(51,153,255,0.15);
+  color: #3399ff;
+  border-color: rgba(51,153,255,0.5);
+  box-shadow: 0 0 10px rgba(51,153,255,0.3);
 }
 
-.sig-pill.up   { background: var(--pos-10); color: var(--pos); border-color: rgba(57,242,138,0.45); }
-.sig-pill.down { background: var(--neg-10); color: var(--neg); border-color: rgba(255,83,104,0.45); }
+.sig-pill.up   { background: rgba(0,255,102,0.15); color: #00ff66; border-color: rgba(0,255,102,0.6); box-shadow: 0 0 12px rgba(0,255,102,0.4); }
+.sig-pill.down { background: rgba(255,51,51,0.15); color: #ff3333; border-color: rgba(255,51,51,0.6); box-shadow: 0 0 12px rgba(255,51,51,0.4); }
 /* VIX is inverted: up VIX = bad (red) */
-.sig-pill.vix-up   { background: var(--neg-10); color: var(--neg); border-color: rgba(255,83,104,0.45); }
-.sig-pill.vix-down { background: var(--pos-10); color: var(--pos); border-color: rgba(57,242,138,0.45); }
-.sig-pill.breadth-high { background: var(--neg-10); color: var(--neg); border-color: rgba(255,83,104,0.45); }
-.sig-pill.breadth-low  { background: var(--pos-10); color: var(--pos); border-color: rgba(57,242,138,0.45); }
+.sig-pill.vix-up   { background: rgba(255,51,51,0.15); color: #ff3333; border-color: rgba(255,51,51,0.6); box-shadow: 0 0 12px rgba(255,51,51,0.4); }
+.sig-pill.vix-down { background: rgba(0,255,102,0.15); color: #00ff66; border-color: rgba(0,255,102,0.6); box-shadow: 0 0 12px rgba(0,255,102,0.4); }
+.sig-pill.breadth-high { background: rgba(255,51,51,0.15); color: #ff3333; border-color: rgba(255,51,51,0.6); box-shadow: 0 0 12px rgba(255,51,51,0.4); }
+.sig-pill.breadth-low  { background: rgba(0,255,102,0.15); color: #00ff66; border-color: rgba(0,255,102,0.6); box-shadow: 0 0 12px rgba(0,255,102,0.4); }
 
 .pill-dot {
   width: 5px;
@@ -1429,6 +1430,54 @@ footer { padding: 20px 48px; background: var(--ink-1); border-top-color: var(--e
 .tag.neu { border-color: rgba(71, 126, 146, 0.45); }
 .tag-interval { color: var(--t-1); }
 
+/* ── Loading & Error States ── */
+body[data-loading="true"] .status-text { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,102,0.4), inset 0 0 20px rgba(0,255,102,0.1); }
+  50% { box-shadow: 0 0 20px 8px rgba(0,255,102,0.2), inset 0 0 20px rgba(0,255,102,0.1); }
+}
+
+.sentiment-banner.is-refreshing {
+  animation: glow-pulse 1.5s ease-in-out;
+}
+
+.sig-pill--loading {
+  background: rgba(51,153,255,0.1);
+  color: rgba(51,153,255,0.8);
+  border-color: rgba(51,153,255,0.2);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.sig-pill--error {
+  background: rgba(255,51,51,0.1);
+  color: rgba(255,51,51,0.8);
+  border-color: rgba(255,51,51,0.3);
+}
+
+body[data-error="true"] .sentiment-banner {
+  border-color: rgba(255,51,51,0.3);
+}
+
+body[data-loading="false"][data-error="false"] .sentiment-banner {
+  opacity: 1;
+  transition: opacity 0.4s ease-out;
+}
+
+/* Accessibility improvements */
+.sig-pill { cursor: help; }
+.sig-pill[title]:hover { border-color: currentColor; }
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-loading="true"] .status-text { animation: none; opacity: 0.7; }
+  .sentiment-banner { transition: none; }
+  .sentiment-banner.is-refreshing { animation: none; }
+}
+
 body[data-theme="dark"] {
   --ink-0: #0e1714;
   --ink-1: #101817;
@@ -1819,321 +1868,11 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
   console.warn  = (...a) => { if (!isTVNoise(a)) _warn(...a);  };
   console.error = (...a) => { if (!isTVNoise(a)) _error(...a); };
 })();
-
-/* ── Clock ── */
-(function clock() {
-  function tick() {
-    const et = new Date().toLocaleTimeString('en-US', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: false, timeZone: 'Asia/Jerusalem'
-    });
-    document.getElementById('clock').textContent = et + ' ILT';
-  }
-  tick();
-  setInterval(tick, 1000);
-})();
-
-/* ── Theme preference ── */
-(function theme() {
-  const body = document.body;
-  const button = document.getElementById('themeToggle');
-  const icon = button?.querySelector('.theme-toggle-icon');
-  const label = button?.querySelector('.theme-toggle-label');
-  const saved = localStorage.getItem('breadthview-theme');
-
-  function apply(mode) {
-    const dark = mode === 'dark';
-    body.dataset.theme = dark ? 'dark' : 'light';
-    if (!button) return;
-    button.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
-    if (icon) icon.textContent = dark ? '☀' : '☾';
-    if (label) label.textContent = dark ? 'Light' : 'Dark';
-  }
-
-  apply(saved === 'dark' ? 'dark' : 'light');
-  button?.addEventListener('click', () => {
-    const next = body.dataset.theme === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('breadthview-theme', next);
-    apply(next);
-  });
-})();
-
-/* ── Ticker tape — rAF marquee, zero glitch ── */
-(function tape() {
-  const items = [
-    { s:'XLP/SPY',  l:'Defensive Ratio'    },
-    { s:'XLU',      l:'Utilities ETF'      },
-    { s:'XLY/XLP',  l:'Risk Appetite'      },
-    { s:'RSP',      l:'Equal Weight ETF'   },
-    { s:'S5FI',     l:'% Above 50D'        },
-    { s:'SPY',      l:'S&P 500 ETF'        },
-    { s:'QQQ',      l:'NASDAQ 100 ETF'     },
-    { s:'IWM',      l:'Russell 2000'       },
-    { s:'DIA',      l:'Dow Jones ETF'      },
-    { s:'GLD',      l:'Gold ETF'           },
-    { s:'TLT',      l:'20Y Treasury ETF'   },
-    { s:'HYG',      l:'High Yield Bonds'   },
-  ];
-
-  const track = document.getElementById('tapeTrack');
-
-  function makeItem({ s, l }) {
-    const el = document.createElement('span');
-    el.className = 'tape-item';
-    el.innerHTML = `<span class="tape-sym">${s}</span><span class="tape-dot">·</span><span class="tape-lbl">${l}</span>`;
-    return el;
-  }
-
-  items.forEach(item => track.appendChild(makeItem(item)));
-
-  // Wait for fonts so scrollWidth is accurate
-  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
-    const setW = track.scrollWidth;
-    const needed = Math.ceil(window.innerWidth * 3 / setW) + 1;
-    for (let i = 0; i < needed; i++) {
-      items.forEach(item => track.appendChild(makeItem(item)));
-    }
-
-    const PX_PER_SEC = 55;
-    let pos = 0;
-    let last = null;
-    let paused = false;
-
-    track.parentElement.addEventListener('mouseenter', () => { paused = true; });
-    track.parentElement.addEventListener('mouseleave', () => { paused = false; });
-    document.addEventListener('visibilitychange', () => { last = null; });
-
-    function step(ts) {
-      if (last !== null && !paused) {
-        // Cap delta at 100ms to prevent jump after tab switch / sleep
-        const delta = Math.min((ts - last) / 1000, 0.1);
-        pos += PX_PER_SEC * delta;
-        if (pos >= setW) pos -= setW;
-        track.style.transform = `translateX(${-pos}px)`;
-      }
-      last = ts;
-      requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
-  });
-})();
-
-/* ── Signal pills + Live Sentiment Score ── */
-(function signals() {
-  const PROXIES = [
-    url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-    url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`,
-    url => url
-  ];
-
-  const cache = {}; // ← dedupe concurrent identical fetches
-  async function fetchChange(symbol) {
-    if (cache[symbol]) return cache[symbol];
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
-    const p = (async () => {
-      let lastErr;
-      for (const makeProxy of PROXIES) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        try {
-          const r = await fetch(makeProxy(yahooUrl), { signal: controller.signal });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const raw  = await r.json();
-          const json = raw.contents ? JSON.parse(raw.contents) : raw;
-          const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-          const valid = (closes || []).filter(v => v != null);
-          if (valid.length < 2) throw new Error('not enough data');
-          return ((valid.at(-1) - valid.at(-2)) / valid.at(-2)) * 100;
-        } catch (e) { lastErr = e; }
-        finally { clearTimeout(timeout); }
-      }
-      throw lastErr;
-    })();
-    cache[symbol] = p;
-    return p;
-  }
-
-  const PALETTE = {
-    pos: { c: 'var(--pos)', bg: 'var(--pos-10)', b: 'rgba(45,216,123,0.25)' },
-    neg: { c: 'var(--neg)', bg: 'var(--neg-10)', b: 'rgba(224,92,106,0.25)' },
-    neu: { c: 'var(--neu)', bg: 'var(--neu-10)', b: 'rgba(91,132,212,0.25)' }
-  };
-
-  function applyPill(id, pct, bullish) {
-    const pill = document.getElementById(id);
-    if (!pill || !Number.isFinite(pct)) return;
-
-    const direction = pct >= 0 ? 'up' : 'down';
-    const value = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
-    pill.className = `sig-pill ${bullish ? direction : `vix-${direction}`}`;
-    pill.querySelector('.pill-val').textContent = value;
-  }
-
-  function pillFail(id) {
-    const pill = document.getElementById(id);
-    if (!pill) return;
-    pill.className = 'sig-pill';
-    pill.querySelector('.pill-val').textContent = 'N/A';
-  }
-
-  async function fetchBreadthValue() {
-    const pageUrl = 'https://www.tradingview.com/symbols/INDEX-S5FI/';
-    const proxies = [
-      url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-      url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-      url => `https://api.cors.lol/?url=${encodeURIComponent(url)}`,
-      url => url,
-    ];
-
-    let lastErr;
-    for (const makeProxy of proxies) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      try {
-        const response = await fetch(makeProxy(pageUrl), {
-          signal: controller.signal,
-          headers: { Accept: 'text/html' }
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const html = await response.text();
-        const values = [...html.matchAll(/"price"\s*:\s*(?:"([\d.]+)"|([\d.]+))/g)]
-          .map(match => Number(match[1] ?? match[2]))
-          .filter(Number.isFinite);
-        const value = values.at(-1);
-        if (Number.isFinite(value)) return value;
-        throw new Error('S5FI price not found');
-      } catch (error) {
-        lastErr = error;
-      } finally {
-        clearTimeout(timeout);
-      }
-    }
-
-    throw lastErr || new Error('S5FI value unavailable');
-  }
-
-  function applyBreadthPill(value) {
-    const pill = document.getElementById('pill-s5fi');
-    const zone = value < 60 ? 'breadth-low' : 'breadth-high';
-    pill.className = `sig-pill ${zone}`;
-    pill.querySelector('.pill-val').textContent = `${value.toFixed(2)}%`;
-  }
-
-  // A correction alert requires every directional condition plus breadth < 60%.
-  function correctionConditionsMet(r, breadth) {
-    return [
-      r.xlpspy !== null && r.xlpspy > 0,
-      r.xlu !== null && r.xlu > 0,
-      r.xlyxlp !== null && r.xlyxlp < 0,
-      r.rsp !== null && r.rsp < 0,
-      r.vix !== null && r.vix > 0,
-      breadth !== null && breadth < 60,
-    ].every(Boolean);
-  }
-
-  function scoreSignal(pct, bullish) {
-    const magnitude = Math.min(Math.abs(pct), 2);
-    const direction = (pct >= 0) === bullish ? 1 : -1;
-    return 10 + direction * magnitude * 5;
-  }
-
-  function applyVerdict(score) {
-    const chip = document.querySelector('.sb-status-chip');
-    const verdict = document.querySelector('.sb-verdict-text');
-    const subtitle = document.querySelector('.sb-subtitle');
-    const status = score >= 60 ? 'Constructive' : score >= 40 ? 'Elevated Caution' : 'Defensive';
-    const palette = score >= 60 ? PALETTE.pos : score >= 40
-      ? { c: 'var(--caution)', bg: 'var(--caution-10)', b: 'rgba(224,143,74,0.22)' }
-      : PALETTE.neg;
-    Object.assign(chip.style, { color: palette.c, background: palette.bg, borderColor: palette.b });
-    chip.lastChild.textContent = ` ${status}`;
-    verdict.innerHTML = score >= 60
-      ? 'Broad Participation — <em>Risk Appetite Intact</em>'
-      : score >= 40
-        ? 'Mixed Signal — <em>Proceed with Caution</em>'
-        : 'Narrow Leadership — <em>Defensive Posture</em>';
-    subtitle.textContent = score >= 60
-      ? 'Breadth and risk appetite indicators are aligning positively, with participation broadening beneath headline index levels.'
-      : score >= 40
-        ? 'Defensive rotation and mixed breadth indicators suggest deteriorating internal momentum beneath headline index levels.'
-        : 'Risk appetite is weakening across breadth and rotation measures. Defensive positioning is outpacing growth exposure.';
-  }
-
-  function runGauge(score) {
-    const clamped = Math.max(0, Math.min(100, score));
-    const arc = document.getElementById('gaugeArc');
-    const number = document.querySelector('.gauge-num');
-    const circumference = 188.5;
-    arc.style.strokeDashoffset = String(circumference * (1 - clamped / 100));
-    number.textContent = String(Math.round(clamped));
-  }
-
-  // New: explicit no-data verdict
-  function applyNoData() {
-    const chip = document.querySelector('.sb-status-chip');
-    const col  = PALETTE.neu;
-    Object.assign(chip.style, { color: col.c, background: col.bg, borderColor: col.b });
-    chip.lastChild.textContent = ' Data Unavailable';
-    document.querySelector('.sb-verdict-text').innerHTML =
-      'Live Data Unavailable — <em>Check Connection</em>';
-    document.querySelector('.sb-subtitle').textContent =
-      'Market sentiment feeds could not be reached. Values shown reflect the last known static summary and should not be acted upon.';
-  }
-
-  let revealed = false;
-  function revealAndScore(r) {
-    if (revealed) return;
-    revealed = true;
-    let total = 0, count = 0;
-    const add = (pct, bull) => { if (pct !== null) { total += scoreSignal(pct, bull); count++; } };
-    add(r.xlpspy, false); add(r.xlyxlp, true);
-    add(r.vix, false);    add(r.rsp, true); add(r.spy, true);
-
-    if (count === 0) {           // ← honest failure path
-      applyNoData();
-      runGauge(50);              // neutral visual, labeled unavailable
-      document.querySelector('.gauge-reading').textContent = 'No Signal';
-      document.querySelector('.sentiment-banner')?.classList.add('is-loaded');
-      return;
-    }
-    const score = Math.round((total / (count * 20)) * 100);
-    applyVerdict(score);
-    runGauge(score);
-    document.body.dataset.correctionReady = correctionConditionsMet(r, breadthValue) ? 'true' : 'false';
-    document.querySelector('.sentiment-banner')?.classList.add('is-loaded');
-  }
-
-  // ── Fetch all (SPY fetched once, shared) ──
-  const spyP   = fetchChange('SPY');
-  const xlpP   = fetchChange('XLP');
-  const xluP   = fetchChange('XLU');
-  const xlyP   = fetchChange('XLY');
-  const rspP   = fetchChange('RSP');
-  const vixP   = fetchChange('^VIX');
-  const breadthP = fetchBreadthValue();
-
-  const r = { xlpspy: null, xlyxlp: null, xlu: null, vix: null, rsp: null, spy: null };
-  let breadthValue = null;
-  const all = [
-    spyP.then(p => { r.spy = p; }),
-    xluP.then(p => { r.xlu = p; applyPill('pill-xlu', p, true); }).catch(() => pillFail('pill-xlu')),
-    breadthP.then(value => { breadthValue = value; applyBreadthPill(value); }).catch(() => pillFail('pill-s5fi')),
-    rspP.then(p => { r.rsp = p; applyPill('pill-rsp', p, false); }).catch(() => pillFail('pill-rsp')),
-    vixP.then(p => { r.vix = p; applyPill('pill-vix', p, true); }).catch(() => pillFail('pill-vix')),
-    Promise.all([xlpP, spyP])
-      .then(([n, d]) => { const pct = ((1+n/100)/(1+d/100)-1)*100; r.xlpspy = pct; applyPill('pill-xlpspy', pct, true); })
-      .catch(() => pillFail('pill-xlpspy')),
-    Promise.all([xlyP, xlpP])
-      .then(([n, d]) => { const pct = ((1+n/100)/(1+d/100)-1)*100; r.xlyxlp = pct; applyPill('pill-xly', pct, false); })
-      .catch(() => pillFail('pill-xly')),
-  ];
-
-  const fallback = setTimeout(revealAndScore, 8000, r);
-  Promise.allSettled(all).then(() => { clearTimeout(fallback); revealAndScore(r); });
-})();
 </script>
+
+<!-- ── Main Application (modular) ── -->
+<script type="module" src="js/app.js"></script>
+
 <script type="module">
   import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 

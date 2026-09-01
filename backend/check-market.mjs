@@ -1,17 +1,14 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { CONFIG, getEnabledChannels, log, formatData } from './config.mjs';
 
 const statePath = new URL('./state.json', import.meta.url);
-const proxies = [
-  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  url => url,
-];
+const proxies = CONFIG.FETCH.CORSPROXY_URLS;
 
 async function fetchJson(url) {
   let lastError;
   for (const makeUrl of proxies) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), CONFIG.FETCH.TIMEOUT_MS);
     try {
       const response = await fetch(makeUrl(url), { signal: controller.signal, headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -38,7 +35,7 @@ async function fetchS5FI() {
   const url = 'https://www.tradingview.com/symbols/INDEX-S5FI/';
   for (const makeUrl of proxies) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), CONFIG.FETCH.TIMEOUT_MS);
     try {
       const response = await fetch(makeUrl(url), { signal: controller.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -77,10 +74,10 @@ function evaluate(data) {
   const conditions = {
     defensiveRatioRising: data.xlpSpy > 0,
     utilitiesRising: data.xlu > 0,
-    riskAppetiteFalling: data.xlyXlp < 0,
-    equalWeightFalling: data.rsp < 0,
+    riskAppetiteRising: data.xlyXlp > 0,
+    equalWeightRising: data.rsp > 0,
     volatilityRising: data.vix > 0,
-    breadthBelow60: data.s5fi < 60,
+    breadthBelow50: data.s5fi < 50,
   };
   return { conditions, allMet: Object.values(conditions).every(Boolean) };
 }
@@ -128,26 +125,64 @@ async function sendWhatsApp(message) {
   return true;
 }
 
-const [spy, xlp, xlu, xly, rsp, vix, s5fi] = await Promise.all([
-  fetchChange('SPY'), fetchChange('XLP'), fetchChange('XLU'), fetchChange('XLY'),
-  fetchChange('RSP'), fetchChange('^VIX'), fetchS5FI(),
-]);
-const data = { xlpSpy: ratio(xlp, spy), xlu, xlyXlp: ratio(xly, xlp), rsp, vix, s5fi };
-const { allMet, conditions } = evaluate(data);
-const state = await loadState();
-const now = new Date().toISOString();
-const message = `BreadthView correction alert\n\nAll correction conditions are met.\n\n${formatData(data)}\n\nChecked: ${now}`;
+try {
+  const [spy, xlp, xlu, xly, rsp, vix, s5fi] = await Promise.all([
+    fetchChange('SPY'), fetchChange('XLP'), fetchChange('XLU'), fetchChange('XLY'),
+    fetchChange('RSP'), fetchChange('^VIX'), fetchS5FI(),
+  ]);
+  const data = { xlpSpy: ratio(xlp, spy), xlu, xlyXlp: ratio(xly, xlp), rsp, vix, s5fi };
+  const { allMet, conditions } = evaluate(data);
+  const state = await loadState();
+  const now = new Date().toISOString();
 
-console.log(JSON.stringify({ allMet, conditions, data }, null, 2));
-if (allMet && !state.correctionActive) {
-  const sent = await Promise.all([sendTelegram(message), sendSms(message), sendWhatsApp(message)]);
-  console.log(`Correction alert sent through ${sent.filter(Boolean).length} configured channel(s).`);
-  await saveState({ correctionActive: true, lastAlertAt: now, lastData: data });
-} else if (!allMet && state.correctionActive) {
-  const recovery = `BreadthView correction alert cleared\n\nThe full correction pattern is no longer active.\n\n${formatData(data)}\n\nChecked: ${now}`;
-  const sent = await Promise.all([sendTelegram(recovery), sendSms(recovery), sendWhatsApp(recovery)]);
-  console.log(`Recovery message sent through ${sent.filter(Boolean).length} configured channel(s).`);
-  await saveState({ correctionActive: false, lastRecoveryAt: now, lastData: data });
-} else {
-  console.log(allMet ? 'Correction remains active; duplicate alert suppressed.' : 'No correction alert.');
+  // Structured logging
+  log('info', 'Market data fetched', {
+    allMet,
+    conditions,
+    enabledChannels: getEnabledChannels(),
+    data
+  });
+
+  if (allMet && !state.correctionActive) {
+    const message = `🚨 BreadthView Correction Alert\n\nAll correction conditions are met.\n\n${formatData(data)}\n\nChecked: ${now}`;
+    const sent = await Promise.all([sendTelegram(message), sendSms(message), sendWhatsApp(message)]);
+    const sentCount = sent.filter(Boolean).length;
+    log('alert', 'Correction pattern activated', {
+      sentChannels: getEnabledChannels().length,
+      sentSuccessfully: sentCount,
+      data
+    });
+    await saveState({ correctionActive: true, lastAlertAt: now, lastData: data });
+  } else if (!allMet && state.correctionActive) {
+    const recovery = `✅ BreadthView Alert Cleared\n\nThe full correction pattern is no longer active.\n\n${formatData(data)}\n\nChecked: ${now}`;
+    const sent = await Promise.all([sendTelegram(recovery), sendSms(recovery), sendWhatsApp(recovery)]);
+    const sentCount = sent.filter(Boolean).length;
+    log('recovery', 'Correction pattern cleared', {
+      sentChannels: getEnabledChannels().length,
+      sentSuccessfully: sentCount,
+      data
+    });
+    await saveState({ correctionActive: false, lastRecoveryAt: now, lastData: data });
+  } else if (allMet && state.correctionActive) {
+    log('info', 'Correction remains active', { state: 'sustained' });
+  } else {
+    log('info', 'No correction pattern', { state: 'normal' });
+  }
+} catch (error) {
+  log('error', 'Market check failed', {
+    errorMessage: error.message,
+    errorStack: error.stack,
+    enabledChannels: getEnabledChannels()
+  });
+  
+  // Optionally send error alert if configured
+  const errorMessage = `⚠️ BreadthView Data Fetch Error\n\n${error.message}\n\nTime: ${new Date().toISOString()}`;
+  try {
+    await Promise.all([sendTelegram(errorMessage), sendSms(errorMessage), sendWhatsApp(errorMessage)]);
+  } catch (alertError) {
+    log('error', 'Failed to send error notification', {
+      originalError: error.message,
+      notificationError: alertError.message
+    });
+  }
 }
