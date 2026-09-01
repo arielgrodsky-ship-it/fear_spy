@@ -183,20 +183,21 @@ class UIController {
     const timeEl = document.querySelector('.workspace-bar-right');
     if (timeEl) {
       const minutes = Math.floor((Date.now() - this.lastUpdate.getTime()) / 60000);
-      let timeText;
-      if (minutes < 1)       timeText = 'just now';
-      else if (minutes < 60) timeText = `${minutes}m ago`;
-      else                   timeText = `${Math.floor(minutes / 60)}h ${minutes % 60}m ago`;
-      const stale = minutes >= 20;
-      const color = stale ? '#ff9900' : '#666';
-      const prefix = stale ? '⚠ Data may be stale — ' : '';
-      timeEl.innerHTML = `<span style="font-size: 11px; color: ${color};">${prefix}Updated ${timeText} · refreshes every 15 min</span>`;
+      const timeText = minutes === 0 ? 'just now' : `${minutes}m ago`;
+      timeEl.innerHTML = `<span style="font-size: 11px; color: #666;">Updated ${timeText}</span>`;
     }
   }
 
   /**
    * Show timeout warning
    */
+  setRefreshButtonSpinning(spinning) {
+    const btn = document.getElementById('refreshBtn');
+    if (!btn) return;
+    btn.disabled = spinning;
+    btn.classList.toggle('is-spinning', spinning);
+  }
+
   showTimeoutWarning() {
     const subtitle = document.querySelector('.sb-subtitle');
     if (subtitle) {

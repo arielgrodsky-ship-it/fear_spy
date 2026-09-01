@@ -1526,6 +1526,44 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
   .sb-gauge { justify-self: end; width: 150px; padding-left: 28px; margin-top: 43px !important; transform: none !important; }
 }
 
+
+/* ── Refresh button ── */
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid var(--edge-1);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--t-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.refresh-btn:hover {
+  color: var(--t-0);
+  border-color: var(--t-2);
+  background: var(--ink-4);
+}
+.refresh-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.refresh-icon {
+  font-size: 13px;
+  display: inline-block;
+  transition: transform 0.3s;
+}
+.refresh-btn.is-spinning .refresh-icon {
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>
 </head>
 <body>
@@ -1560,6 +1598,10 @@ body[data-theme="dark"] .theme-toggle-icon { font-size: 13px; }
   </div>
 
   <div class="nav-right">
+    <button class="refresh-btn" id="refreshBtn" type="button" aria-label="Refresh data" title="Refresh market data">
+      <span class="refresh-icon" aria-hidden="true">↻</span>
+      <span class="refresh-label">Refresh</span>
+    </button>
     <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark theme" title="Switch theme">
       <span class="theme-toggle-icon" aria-hidden="true">☾</span>
       <span class="theme-toggle-label">Dark</span>

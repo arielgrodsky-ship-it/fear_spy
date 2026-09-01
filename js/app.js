@@ -16,35 +16,36 @@ class BreadthViewApp {
     
     this.updateInterval = null;
     this.timeoutWarningTimeout = null;
-    
-    // Auto-refresh rate: how often to fetch fresh data (in milliseconds)
-    // Default: 30000ms = 30 seconds (adjust to your preference)
-    // Production use: 60000ms = 1 minute or higher to avoid rate limits
+    this.isFetching = false;
+
     this.pollRate = 15 * 60 * 1000; // match GitHub Actions cadence
   }
 
-  /**
-   * Initialize and start the app
-   */
   async init() {
     console.log('BreadthView starting...');
+    this.bindRefreshButton();
     this.fetchAndUpdate();
-    
-    // Poll for updates
     this.updateInterval = setInterval(() => this.fetchAndUpdate(), this.pollRate);
   }
 
-  /**
-   * Fetch data and update UI
-   */
+  bindRefreshButton() {
+    const btn = document.getElementById('refreshBtn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      if (this.isFetching) return;
+      this.fetchAndUpdate();
+    });
+  }
+
   async fetchAndUpdate() {
+    if (this.isFetching) return;
+    this.isFetching = true;
     this.ui.showLoading();
-    
-    // Add visual refresh pulse
+    this.ui.setRefreshButtonSpinning(true);
+
     const banner = document.querySelector('.sentiment-banner');
     if (banner) banner.classList.add('is-refreshing');
-    
-    // Show warning if taking too long
+
     this.timeoutWarningTimeout = setTimeout(() => {
       this.ui.showTimeoutWarning();
     }, 4000);
@@ -52,18 +53,16 @@ class BreadthViewApp {
     try {
       const data = await fetchAllData();
       clearTimeout(this.timeoutWarningTimeout);
-      
+
       this.updateUI(data);
       this.ui.showReady();
       this.ui.updateTimestamp(data.timestamp);
-      
-      // Remove refresh pulse
+
       if (banner) {
         banner.classList.remove('is-refreshing');
         banner.classList.add('is-loaded');
       }
-      
-      // Log correction status
+
       const { conditions } = calculateSentiment(data);
       console.log('Market status:', {
         correctionActive: isCorrectionActive(conditions),
@@ -77,33 +76,22 @@ class BreadthViewApp {
         `GitHub Actions updates data every 15 minutes. If the file is missing, run the workflow manually from the Actions tab.`
       );
       console.error('App error:', error);
-      
-      // Remove refresh pulse on error
       if (banner) banner.classList.remove('is-refreshing');
+    } finally {
+      this.isFetching = false;
+      this.ui.setRefreshButtonSpinning(false);
     }
   }
 
-  /**
-   * Update all UI elements with new data
-   */
   updateUI(data) {
-    // === Color Rules ===
-    // VIX, XLU, XLP/SPY, XLY/XLP, RSP: up = green, down = red
-    // S5FI: >50% = green, <50% = red
-    
-    // Update individual signal pills
-    this.ui.updatePill('pill-xlpspy', data.xlpspy, true);   // up = green
-    this.ui.updatePill('pill-xlu', data.xlu, true);         // up = green
-    this.ui.updatePill('pill-xly', data.xlyxlp, true);      // up = green
-    this.ui.updatePill('pill-rsp', data.rsp, true);         // up = green
-    this.ui.updatePill('pill-vix', data.vix, true);         // up = green
-    
-    // Update breadth with special coloring: >50% = green, <50% = red
+    this.ui.updatePill('pill-xlpspy', data.xlpspy, true);
+    this.ui.updatePill('pill-xlu', data.xlu, true);
+    this.ui.updatePill('pill-xly', data.xlyxlp, true);
+    this.ui.updatePill('pill-rsp', data.rsp, true);
+    this.ui.updatePill('pill-vix', data.vix, true);
     this.ui.updateBreadthPill(data.s5fi);
 
-    // Calculate and update sentiment
     const { score, hasData } = calculateSentiment(data);
-    
     if (!hasData) {
       this.ui.showError('Insufficient data received');
       return;
@@ -113,20 +101,12 @@ class BreadthViewApp {
     this.ui.updateVerdict(verdict, score);
   }
 
-  /**
-   * Destroy app and clean up
-   */
   destroy() {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
-    }
-    if (this.timeoutWarningTimeout) {
-      clearTimeout(this.timeoutWarningTimeout);
-    }
+    if (this.updateInterval) clearInterval(this.updateInterval);
+    if (this.timeoutWarningTimeout) clearTimeout(this.timeoutWarningTimeout);
   }
 }
 
-// Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     window.breadthViewApp = new BreadthViewApp();
