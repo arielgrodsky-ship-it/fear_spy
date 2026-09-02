@@ -7,6 +7,7 @@ class UIController {
   constructor() {
     this.isLoading = false;
     this.lastUpdate = null;
+    this.boundRefreshHandler = null;
   }
 
   /**
@@ -15,19 +16,20 @@ class UIController {
   updatePill(id, value, bullish) {
     const pill = document.getElementById(id);
     if (!pill) return;
+    const valueEl = pill.querySelector('.pill-val');
+    if (!valueEl) return;
 
     if (value === null || !Number.isFinite(value)) {
       pill.className = 'sig-pill sig-pill--loading';
-      pill.querySelector('.pill-val').textContent = '⋯';
+      valueEl.textContent = '...';
       return;
     }
 
-    const direction = value >= 0 ? 'up' : 'down';
-    const isBullish = (value >= 0) === bullish;
-    const displayClass = isBullish ? direction : `vix-${direction}`;
+    const directionMatches = (value >= 0) === bullish;
+    const displayClass = directionMatches ? 'up' : 'down';
     
     pill.className = `sig-pill ${displayClass}`;
-    pill.querySelector('.pill-val').textContent = `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+    valueEl.textContent = `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   }
 
   /**
@@ -36,8 +38,10 @@ class UIController {
   setPillError(id, message = 'Error') {
     const pill = document.getElementById(id);
     if (!pill) return;
+    const valueEl = pill.querySelector('.pill-val');
+    if (!valueEl) return;
     pill.className = 'sig-pill sig-pill--error';
-    pill.querySelector('.pill-val').textContent = 'N/A';
+    valueEl.textContent = 'N/A';
     pill.title = message;
   }
 
@@ -54,7 +58,8 @@ class UIController {
     // S5FI Rule: >50% = green (breadth-low), <50% = red (breadth-high)
     const zone = value >= 50 ? 'breadth-low' : 'breadth-high';
     pill.className = `sig-pill ${zone}`;
-    pill.querySelector('.pill-val').textContent = `${value.toFixed(2)}%`;
+    const valueEl = pill.querySelector('.pill-val');
+    if (valueEl) valueEl.textContent = `${value.toFixed(2)}%`;
   }
 
   /**
@@ -75,7 +80,11 @@ class UIController {
     }
 
     if (verdictText) {
-      verdictText.innerHTML = verdict.title;
+      const [plainTitle, emphasizedTitle = ''] = verdict.title.split('<em>');
+      const emphasizedText = emphasizedTitle.replace('</em>', '');
+      const emphasis = document.createElement('em');
+      emphasis.textContent = emphasizedText;
+      verdictText.replaceChildren(document.createTextNode(plainTitle), emphasis);
     }
 
     if (subtitle) {
@@ -117,6 +126,10 @@ class UIController {
   showLoading() {
     this.isLoading = true;
     document.body.dataset.loading = 'true';
+    document.body.dataset.error = 'false';
+
+    const banner = document.querySelector('.sentiment-banner');
+    if (banner) banner.classList.remove('is-loaded');
     
     // Reset pills to loading state
     ['pill-xlpspy', 'pill-xlu', 'pill-xly', 'pill-rsp', 'pill-vix', 'pill-s5fi']
@@ -137,11 +150,16 @@ class UIController {
     document.body.dataset.loading = 'false';
     document.body.dataset.error = 'true';
 
+    const banner = document.querySelector('.sentiment-banner');
+    if (banner) {
+      banner.classList.remove('is-loaded', 'is-refreshing');
+    }
+
     const verdictText = document.querySelector('.sb-verdict-text');
     const subtitle = document.querySelector('.sb-subtitle');
 
     if (verdictText) {
-      verdictText.innerHTML = 'Data Unavailable — <em>Check Connection</em>';
+      verdictText.replaceChildren(document.createTextNode('Data Unavailable - Check Connection'));
     }
 
     if (subtitle) {
@@ -184,7 +202,10 @@ class UIController {
     if (timeEl) {
       const minutes = Math.floor((Date.now() - this.lastUpdate.getTime()) / 60000);
       const timeText = minutes === 0 ? 'just now' : `${minutes}m ago`;
-      timeEl.innerHTML = `<span style="font-size: 11px; color: #666;">Updated ${timeText}</span>`;
+      const updated = document.createElement('span');
+      updated.style.cssText = 'font-size: 11px; color: #666;';
+      updated.textContent = `Updated ${timeText}`;
+      timeEl.replaceChildren(updated);
     }
   }
 
@@ -213,15 +234,22 @@ class UIController {
 class ThemeManager {
   constructor() {
     this.toggleButton = document.getElementById('themeToggle');
+    this.boundToggleHandler = null;
     this.init();
   }
 
   init() {
     if (!this.toggleButton) return;
     
-    const saved = localStorage.getItem('breadthview-theme');
+    let saved = null;
+    try {
+      saved = localStorage.getItem('breadthview-theme');
+    } catch {
+      // Storage can be unavailable in privacy-restricted browser contexts.
+    }
     this.apply(saved === 'dark' ? 'dark' : 'light');
-    this.toggleButton.addEventListener('click', () => this.toggle());
+    this.boundToggleHandler = () => this.toggle();
+    this.toggleButton.addEventListener('click', this.boundToggleHandler);
   }
 
   apply(mode) {
@@ -239,8 +267,18 @@ class ThemeManager {
 
   toggle() {
     const next = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('breadthview-theme', next);
+    try {
+      localStorage.setItem('breadthview-theme', next);
+    } catch {
+      // The theme still applies for this session when storage is unavailable.
+    }
     this.apply(next);
+  }
+
+  destroy() {
+    if (this.toggleButton && this.boundToggleHandler) {
+      this.toggleButton.removeEventListener('click', this.boundToggleHandler);
+    }
   }
 }
 
@@ -248,13 +286,14 @@ class ThemeManager {
 class ClockManager {
   constructor() {
     this.clock = document.getElementById('clock');
+    this.interval = null;
     this.init();
   }
 
   init() {
     if (!this.clock) return;
     this.tick();
-    setInterval(() => this.tick(), 1000);
+    this.interval = setInterval(() => this.tick(), 1000);
   }
 
   tick() {
@@ -267,12 +306,20 @@ class ClockManager {
     });
     this.clock.textContent = et + ' ILT';
   }
+
+  destroy() {
+    if (this.interval) clearInterval(this.interval);
+  }
 }
 
 // Ticker tape management
 class TickerTapeManager {
   constructor() {
     this.track = document.getElementById('tapeTrack');
+    this.animationFrame = null;
+    this.boundVisibilityHandler = null;
+    this.boundMouseEnterHandler = null;
+    this.boundMouseLeaveHandler = null;
     this.items = [
       { s: 'XLP/SPY', l: 'Defensive Ratio' },
       { s: 'XLU', l: 'Utilities ETF' },
@@ -297,6 +344,7 @@ class TickerTapeManager {
 
     (document.fonts?.ready || Promise.resolve()).then(() => {
       const setW = this.track.scrollWidth;
+      if (!setW) return;
       const needed = Math.ceil(window.innerWidth * 3 / setW) + 1;
       for (let i = 0; i < needed; i++) {
         this.items.forEach(item => this.track.appendChild(this.makeItem(item)));
@@ -308,7 +356,16 @@ class TickerTapeManager {
   makeItem({ s, l }) {
     const el = document.createElement('span');
     el.className = 'tape-item';
-    el.innerHTML = `<span class="tape-sym">${s}</span><span class="tape-dot">·</span><span class="tape-lbl">${l}</span>`;
+    const symbol = document.createElement('span');
+    symbol.className = 'tape-sym';
+    symbol.textContent = s;
+    const dot = document.createElement('span');
+    dot.className = 'tape-dot';
+    dot.textContent = '.';
+    const label = document.createElement('span');
+    label.className = 'tape-lbl';
+    label.textContent = l;
+    el.append(symbol, dot, label);
     return el;
   }
 
@@ -318,9 +375,13 @@ class TickerTapeManager {
     let last = null;
     let paused = false;
 
-    this.track.parentElement.addEventListener('mouseenter', () => { paused = true; });
-    this.track.parentElement.addEventListener('mouseleave', () => { paused = false; });
-    document.addEventListener('visibilitychange', () => { last = null; });
+    const parent = this.track.parentElement;
+    this.boundMouseEnterHandler = () => { paused = true; };
+    this.boundMouseLeaveHandler = () => { paused = false; };
+    this.boundVisibilityHandler = () => { last = null; };
+    parent.addEventListener('mouseenter', this.boundMouseEnterHandler);
+    parent.addEventListener('mouseleave', this.boundMouseLeaveHandler);
+    document.addEventListener('visibilitychange', this.boundVisibilityHandler);
 
     const step = (ts) => {
       if (last !== null && !paused) {
@@ -330,10 +391,22 @@ class TickerTapeManager {
         this.track.style.transform = `translateX(${-pos}px)`;
       }
       last = ts;
-      requestAnimationFrame(step);
+      this.animationFrame = requestAnimationFrame(step);
     };
     
-    requestAnimationFrame(step);
+    this.animationFrame = requestAnimationFrame(step);
+  }
+
+  destroy() {
+    if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
+    const parent = this.track?.parentElement;
+    if (parent) {
+      parent.removeEventListener('mouseenter', this.boundMouseEnterHandler);
+      parent.removeEventListener('mouseleave', this.boundMouseLeaveHandler);
+    }
+    if (this.boundVisibilityHandler) {
+      document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
+    }
   }
 }
 

@@ -11,7 +11,7 @@ Every condition must be true:
 - XLY/XLP daily change is less than 0%
 - RSP daily change is less than 0%
 - VIX daily change is greater than 0%
-- S5FI is below 60%
+- S5FI is below 50%
 
 These are semantic rules. A green pill means the condition is favorable to the correction signal; it does not mean the underlying asset always rose.
 

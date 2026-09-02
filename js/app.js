@@ -24,17 +24,19 @@ class BreadthViewApp {
   async init() {
     console.log('BreadthView starting...');
     this.bindRefreshButton();
-    this.fetchAndUpdate();
+    await this.fetchAndUpdate();
     this.updateInterval = setInterval(() => this.fetchAndUpdate(), this.pollRate);
   }
 
   bindRefreshButton() {
     const btn = document.getElementById('refreshBtn');
     if (!btn) return;
-    btn.addEventListener('click', () => {
+    this.refreshButton = btn;
+    this.boundRefreshHandler = () => {
       if (this.isFetching) return;
       this.fetchAndUpdate();
-    });
+    };
+    btn.addEventListener('click', this.boundRefreshHandler);
   }
 
   async fetchAndUpdate() {
@@ -54,7 +56,8 @@ class BreadthViewApp {
       const data = await fetchAllData();
       clearTimeout(this.timeoutWarningTimeout);
 
-      this.updateUI(data);
+      const hasUsableData = this.updateUI(data);
+      if (!hasUsableData) return;
       this.ui.showReady();
       this.ui.updateTimestamp(data.timestamp);
 
@@ -86,24 +89,31 @@ class BreadthViewApp {
   updateUI(data) {
     this.ui.updatePill('pill-xlpspy', data.xlpspy, true);
     this.ui.updatePill('pill-xlu', data.xlu, true);
-    this.ui.updatePill('pill-xly', data.xlyxlp, true);
-    this.ui.updatePill('pill-rsp', data.rsp, true);
+    this.ui.updatePill('pill-xly', data.xlyxlp, false);
+    this.ui.updatePill('pill-rsp', data.rsp, false);
     this.ui.updatePill('pill-vix', data.vix, true);
     this.ui.updateBreadthPill(data.s5fi);
 
     const { score, hasData } = calculateSentiment(data);
     if (!hasData) {
       this.ui.showError('Insufficient data received');
-      return;
+      return false;
     }
 
     const verdict = getVerdict(score);
     this.ui.updateVerdict(verdict, score);
+    return true;
   }
 
   destroy() {
     if (this.updateInterval) clearInterval(this.updateInterval);
     if (this.timeoutWarningTimeout) clearTimeout(this.timeoutWarningTimeout);
+    if (this.refreshButton && this.boundRefreshHandler) {
+      this.refreshButton.removeEventListener('click', this.boundRefreshHandler);
+    }
+    this.theme.destroy();
+    this.clock.destroy();
+    this.ticker.destroy();
   }
 }
 

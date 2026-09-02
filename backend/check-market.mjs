@@ -3,6 +3,7 @@ import { CONFIG, getEnabledChannels, log, formatData } from './config.mjs';
 
 const statePath  = new URL('./state.json',  import.meta.url);
 const dataPath   = new URL('./data.json',   import.meta.url);
+const NOTIFICATION_TIMEOUT_MS = 8000;
 
 // ─── Fetch helpers ───────────────────────────────────────────────────────────
 
@@ -21,12 +22,26 @@ async function fetchJson(url) {
   }
 }
 
+async function sendRequest(url, options) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NOTIFICATION_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchChange(symbol) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
   const json = await fetchJson(url);
-  const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(v => v != null);
+  const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(Number.isFinite);
   if (!closes || closes.length < 2) throw new Error(`${symbol}: insufficient data`);
-  return ((closes.at(-1) - closes.at(-2)) / closes.at(-2)) * 100;
+  const previous = closes.at(-2);
+  if (previous === 0) throw new Error(`${symbol}: previous close is zero`);
+  const change = ((closes.at(-1) - previous) / previous) * 100;
+  if (!Number.isFinite(change)) throw new Error(`${symbol}: invalid change`);
+  return change;
 }
 
 async function fetchS5FI() {
@@ -44,7 +59,7 @@ async function fetchS5FI() {
       .map(m => Number(m[1] ?? m[2]))
       .filter(Number.isFinite);
     const value = prices.at(-1);
-    if (Number.isFinite(value)) return value;
+    if (Number.isFinite(value) && value >= 0 && value <= 100) return value;
     throw new Error('S5FI price not found in page');
   } finally {
     clearTimeout(timeout);
@@ -83,17 +98,21 @@ async function saveDataJson(data) {
 // ─── Evaluation ──────────────────────────────────────────────────────────────
 
 function ratio(num, den) {
-  return ((1 + num / 100) / (1 + den / 100) - 1) * 100;
+  const denominator = 1 + den / 100;
+  if (denominator === 0) throw new Error('Cannot calculate ratio with a -100% denominator');
+  const result = ((1 + num / 100) / denominator - 1) * 100;
+  if (!Number.isFinite(result)) throw new Error('Calculated ratio is invalid');
+  return result;
 }
 
 function evaluate(data) {
   const conditions = {
-    defensiveRatioRising: data.xlpSpy > 0,
-    utilitiesRising:      data.xlu > 0,
-    riskAppetiteRising:   data.xlyXlp > 0,
-    equalWeightRising:    data.rsp > 0,
-    volatilityRising:     data.vix > 0,
-    breadthBelow50:       data.s5fi < 50,
+    defensiveRatioRising: data.xlpSpy > CONFIG.CORRECTION_CONDITIONS.defensive_ratio_rising,
+    utilitiesRising:      data.xlu > CONFIG.CORRECTION_CONDITIONS.utilities_rising,
+    riskAppetiteFalling:  data.xlyXlp < CONFIG.CORRECTION_CONDITIONS.risk_appetite_falling,
+    equalWeightFalling:   data.rsp < CONFIG.CORRECTION_CONDITIONS.equal_weight_falling,
+    volatilityRising:     data.vix > CONFIG.CORRECTION_CONDITIONS.volatility_rising,
+    breadthBelow50:       data.s5fi < CONFIG.CORRECTION_CONDITIONS.breadth_below_threshold,
   };
   return { conditions, allMet: Object.values(conditions).every(Boolean) };
 }
@@ -102,7 +121,7 @@ function evaluate(data) {
 
 async function sendTelegram(message) {
   if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) return false;
-  const response = await fetch(
+  const response = await sendRequest(
     `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: message }) }
@@ -115,7 +134,7 @@ async function sendSms(message) {
   const { TWILIO_ACCOUNT_SID: sid, TWILIO_AUTH_TOKEN: token, TWILIO_FROM: from, SMS_TO: to } = process.env;
   if (!sid || !token || !from || !to) return false;
   const body = new URLSearchParams({ From: from, To: to, Body: message });
-  const response = await fetch(
+  const response = await sendRequest(
     `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
     { method: 'POST',
       headers: { Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}`,
@@ -128,7 +147,7 @@ async function sendSms(message) {
 async function sendWhatsApp(message) {
   const { WHATSAPP_ACCESS_TOKEN: token, WHATSAPP_PHONE_NUMBER_ID: phoneId, WHATSAPP_TO: to } = process.env;
   if (!token || !phoneId || !to) return false;
-  const response = await fetch(
+  const response = await sendRequest(
     `https://graph.facebook.com/v22.0/${phoneId}/messages`,
     { method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -136,6 +155,17 @@ async function sendWhatsApp(message) {
   );
   if (!response.ok) throw new Error(`WhatsApp HTTP ${response.status}`);
   return true;
+}
+
+async function notifyAll(message) {
+  const results = await Promise.allSettled([
+    sendTelegram(message), sendSms(message), sendWhatsApp(message)
+  ]);
+  const failed = results.filter(result => result.status === 'rejected');
+  failed.forEach(result => log('error', 'Notification channel failed', {
+    errorMessage: result.reason?.message ?? String(result.reason)
+  }));
+  return results.map(result => result.status === 'fulfilled' && result.value);
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -159,12 +189,12 @@ try {
 
   if (allMet && !state.correctionActive) {
     const message = `🚨 BreadthView Correction Alert\n\nAll correction conditions are met.\n\n${formatData(data)}\n\nChecked: ${now}`;
-    const sent = await Promise.all([sendTelegram(message), sendSms(message), sendWhatsApp(message)]);
+    const sent = await notifyAll(message);
     log('alert', 'Correction pattern activated', { sentSuccessfully: sent.filter(Boolean).length, data });
     await saveState({ correctionActive: true, lastAlertAt: now, lastData: data });
   } else if (!allMet && state.correctionActive) {
     const recovery = `✅ BreadthView Alert Cleared\n\nThe full correction pattern is no longer active.\n\n${formatData(data)}\n\nChecked: ${now}`;
-    const sent = await Promise.all([sendTelegram(recovery), sendSms(recovery), sendWhatsApp(recovery)]);
+    const sent = await notifyAll(recovery);
     log('recovery', 'Correction pattern cleared', { sentSuccessfully: sent.filter(Boolean).length, data });
     await saveState({ correctionActive: false, lastRecoveryAt: now, lastData: data });
   } else if (allMet && state.correctionActive) {
@@ -177,7 +207,7 @@ try {
   log('error', 'Market check failed', { errorMessage: error.message, errorStack: error.stack });
   const errorMessage = `⚠️ BreadthView Data Fetch Error\n\n${error.message}\n\nTime: ${new Date().toISOString()}`;
   try {
-    await Promise.all([sendTelegram(errorMessage), sendSms(errorMessage), sendWhatsApp(errorMessage)]);
+    await notifyAll(errorMessage);
   } catch (alertError) {
     log('error', 'Failed to send error notification', { alertError: alertError.message });
   }

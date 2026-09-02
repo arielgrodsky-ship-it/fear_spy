@@ -35,8 +35,8 @@ function evaluateConditions(data) {
   return {
     xlpspy: data.xlpspy > 0,      // XLP/SPY up = green (bullish)
     xlu: data.xlu > 0,            // XLU up = green (bullish)
-    xlyxlp: data.xlyxlp > 0,      // XLY/XLP up = green (bullish)
-    rsp: data.rsp > 0,            // RSP up = green (bullish)
+    xlyxlp: data.xlyxlp < 0,      // XLY/XLP down = correction signal
+    rsp: data.rsp < 0,            // RSP down = correction signal
     vix: data.vix > 0,            // VIX up = green (bullish signal of worry)
     breadth: data.s5fi < 50       // S5FI <50 = red (bearish, weak breadth)
   };
@@ -54,6 +54,12 @@ function scoreSignal(pct, bullish) {
   return 10 + direction * magnitude * 5;
 }
 
+/** Score breadth as distance from its neutral 50% threshold, not as a daily return. */
+function scoreBreadth(value) {
+  const distance = Math.max(-2, Math.min(2, (value - 50) / 10));
+  return 10 + distance * 5;
+}
+
 /**
  * Calculate overall sentiment score
  * @param {Object} data - Market data object
@@ -68,15 +74,16 @@ function calculateSentiment(data) {
   // Weight each signal
   const signals = [
     { value: data.xlpspy, bullish: false }, // Defensive ratio (inverted)
+    { value: data.xlu, bullish: true },     // Defensive demand
     { value: data.xlyxlp, bullish: true },  // Risk appetite
     { value: data.vix, bullish: false },    // Volatility
     { value: data.rsp, bullish: true },     // Participation
-    { value: data.s5fi, bullish: true }     // Breadth (needs special handling)
+    { value: data.s5fi, breadth: true }     // Breadth is a percentage, not a return
   ];
   
-  signals.forEach(({ value, bullish }) => {
+  signals.forEach(({ value, bullish, breadth }) => {
     if (value != null && Number.isFinite(value)) {
-      total += scoreSignal(value, bullish);
+      total += breadth ? scoreBreadth(value) : scoreSignal(value, bullish);
       count++;
     }
   });
@@ -150,5 +157,6 @@ export {
   getReadingLabel,
   isCorrectionActive,
   scoreSignal,
+  scoreBreadth,
   PALETTE
 };

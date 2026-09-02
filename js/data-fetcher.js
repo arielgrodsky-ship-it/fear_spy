@@ -26,7 +26,16 @@ async function fetchAllData() {
     throw new Error(`data.json returned HTTP ${response.status}`);
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error('data.json contained invalid JSON');
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('data.json must contain an object');
+  }
 
   // Validate required fields
   const required = ['xlpspy', 'xlu', 'xlyxlp', 'rsp', 'vix', 's5fi', 'timestamp'];
@@ -40,6 +49,23 @@ async function fetchAllData() {
   const invalid = numericFields.filter(k => !Number.isFinite(data[k]));
   if (invalid.length > 0) {
     throw new Error(`data.json has non-numeric values for: ${invalid.join(', ')}`);
+  }
+
+  if (data.s5fi < 0 || data.s5fi > 100) {
+    throw new Error('data.json has an out-of-range s5fi value');
+  }
+
+  const timestamp = Date.parse(data.timestamp);
+  if (Number.isNaN(timestamp)) {
+    throw new Error('data.json has an invalid timestamp');
+  }
+
+  const age = Date.now() - timestamp;
+  if (age < 0) {
+    throw new Error('data.json timestamp is in the future');
+  }
+  if (age > 24 * 60 * 60 * 1000) {
+    throw new Error('market data is stale; the GitHub Actions workflow must run successfully');
   }
 
   return data;
