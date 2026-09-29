@@ -74,7 +74,7 @@ function calculateSentiment(data) {
   // Weight each signal
   const signals = [
     { value: data.xlpspy, bullish: false }, // Defensive ratio (inverted)
-    { value: data.xlu, bullish: true },     // Defensive demand
+    { value: data.xlu, bullish: false },    // Defensive demand
     { value: data.xlyxlp, bullish: true },  // Risk appetite
     { value: data.vix, bullish: false },    // Volatility
     { value: data.rsp, bullish: true },     // Participation

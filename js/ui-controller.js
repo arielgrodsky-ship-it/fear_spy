@@ -198,14 +198,12 @@ class UIController {
    */
   updateTimestamp(timestamp) {
     this.lastUpdate = new Date(timestamp);
-    const timeEl = document.querySelector('.workspace-bar-right');
+    const timeEl = document.getElementById('dataUpdated');
     if (timeEl) {
       const minutes = Math.floor((Date.now() - this.lastUpdate.getTime()) / 60000);
       const timeText = minutes === 0 ? 'just now' : `${minutes}m ago`;
-      const updated = document.createElement('span');
-      updated.style.cssText = 'font-size: 11px; color: #666;';
-      updated.textContent = `Updated ${timeText}`;
-      timeEl.replaceChildren(updated);
+      timeEl.dateTime = this.lastUpdate.toISOString();
+      timeEl.textContent = `Updated ${timeText}`;
     }
   }
 

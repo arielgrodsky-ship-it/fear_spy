@@ -7,19 +7,34 @@ const NOTIFICATION_TIMEOUT_MS = 8000;
 
 // ─── Fetch helpers ───────────────────────────────────────────────────────────
 
-async function fetchJson(url) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), CONFIG.FETCH.TIMEOUT_MS);
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' }
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
-  } finally {
-    clearTimeout(timeout);
+async function fetchWithRetries(url, options, readResponse) {
+  for (let attempt = 0; attempt < CONFIG.FETCH.MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CONFIG.FETCH.TIMEOUT_MS);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      return await readResponse(response);
+    } catch (error) {
+      const retryable = !error.status || error.status === 429 || error.status >= 500;
+      if (!retryable || attempt + 1 >= CONFIG.FETCH.MAX_RETRIES) throw error;
+      await new Promise(resolve => setTimeout(resolve, 500 * (2 ** attempt)));
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+}
+
+async function fetchJson(url) {
+  return fetchWithRetries(
+    url,
+    { headers: { Accept: 'application/json' } },
+    response => response.json()
+  );
 }
 
 async function sendRequest(url, options) {
@@ -33,10 +48,17 @@ async function sendRequest(url, options) {
 }
 
 async function fetchChange(symbol) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
   const json = await fetchJson(url);
-  const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(Number.isFinite);
-  if (!closes || closes.length < 2) throw new Error(`${symbol}: insufficient data`);
+  const chart = json?.chart;
+  if (chart?.error) {
+    throw new Error(`${symbol}: Yahoo Finance ${chart.error.code ?? 'error'}: ${chart.error.description ?? 'quote unavailable'}`);
+  }
+  const result = chart?.result?.[0];
+  const closes = result?.indicators?.quote?.[0]?.close?.filter(Number.isFinite) ?? [];
+  if (closes.length < 2) {
+    throw new Error(`${symbol}: insufficient data (${closes.length} valid closes from ${result?.timestamp?.length ?? 0} daily points over 5 days)`);
+  }
   const previous = closes.at(-2);
   if (previous === 0) throw new Error(`${symbol}: previous close is zero`);
   const change = ((closes.at(-1) - previous) / previous) * 100;
@@ -46,23 +68,20 @@ async function fetchChange(symbol) {
 
 async function fetchS5FI() {
   // Yahoo Finance doesn't have S5FI directly — scrape TradingView
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), CONFIG.FETCH.TIMEOUT_MS);
   try {
-    const response = await fetch('https://www.tradingview.com/symbols/INDEX-S5FI/', {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BreadthView/1.0)' }
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const html = await response.text();
+    const html = await fetchWithRetries(
+      'https://www.tradingview.com/symbols/INDEX-S5FI/',
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BreadthView/1.0)' } },
+      response => response.text()
+    );
     const prices = [...html.matchAll(/"price"\s*:\s*(?:"([\d.]+)"|([\d.]+))/g)]
       .map(m => Number(m[1] ?? m[2]))
       .filter(Number.isFinite);
     const value = prices.at(-1);
     if (Number.isFinite(value) && value >= 0 && value <= 100) return value;
     throw new Error('S5FI price not found in page');
-  } finally {
-    clearTimeout(timeout);
+  } catch (error) {
+    throw new Error(`S5FI fetch failed: ${error.message}`);
   }
 }
 
