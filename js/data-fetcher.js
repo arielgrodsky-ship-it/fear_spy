@@ -15,22 +15,27 @@ async function fetchAllData() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
 
-  let response;
-  try {
-    response = await fetch(url, { signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!response.ok) {
-    throw new Error(`data.json returned HTTP ${response.status}`);
-  }
-
   let data;
   try {
-    data = await response.json();
-  } catch {
-    throw new Error('data.json contained invalid JSON');
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`data.json returned HTTP ${response.status}`);
+    }
+    try {
+      data = await response.json();
+    } catch {
+      if (controller.signal.aborted) {
+        throw new Error('Timed out while reading market data');
+      }
+      throw new Error('data.json contained invalid JSON');
+    }
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('Timed out while loading market data');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
 
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -64,7 +69,7 @@ async function fetchAllData() {
   if (age < 0) {
     throw new Error('data.json timestamp is in the future');
   }
-  if (age > 24 * 60 * 60 * 1000) {
+  if (age > 5 * 24 * 60 * 60 * 1000) {
     throw new Error('market data is stale; the GitHub Actions workflow must run successfully');
   }
 
